@@ -2,7 +2,9 @@
 
 #include <Arduino.h>
 #include <Wire.h> // I2C 用
+#include <Adafruit_VL53L0X.h>
 #include <Servo.h>
+Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 Servo servo;
 
 /* ピン割り当て */
@@ -60,7 +62,12 @@ int linePos = 0;        // ライン位置番号: 1～8
 
 void setup() {
   Serial.begin(115200);
-  Wire.begin();
+  Wire.begin(); // SDA=20, SCL=21 の場合は別途 Wire.setPins() が必要な環境もあり
+  if (!lox.begin()) {
+    Serial.println("ERROR: VL53L0X 初期化失敗");
+    while (1) delay(10);
+  }
+  Serial.println("VL53L0X 初期化完了");
   // ラインセンサ
   pinMode(LINE_CH1_PIN, INPUT);
   pinMode(LINE_CH2_PIN, INPUT);
@@ -146,10 +153,6 @@ void controlSuction(bool on) {
   }
 }
 
-// ボール有無確認
-bool hasBall() {
-  return psd;
-}
 
 // 前後移動: mm/s (正:前進, 負:後退)
 void driveStraight(int speed_mm_s) {
@@ -196,8 +199,17 @@ void stopAll() {
   analogWrite(SUCTION_MD_B, 0);
 }
 
-// 以下センサ読み取りスタブ
-bool readDistanceSensor() { return false; }
-int readColor() { return 0; }
-int readLinePosition() { return 0; }
+bool readDistanceSensor() {
+  VL53L0X_RangingMeasurementData_t meas;
+  // false: デバッグ用シリアル出力なし
+  lox.rangingTest(&meas, false);
 
+  // RangeStatus が 4 以外なら有効値
+  if (meas.RangeStatus != 4) {
+    // meas.RangeMilliMeter は距離[mm]
+    return (meas.RangeMilliMeter <= 50);
+  } else {
+    // エラー時は「遠い」とみなす
+    return false;
+  }
+}
