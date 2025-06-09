@@ -58,7 +58,7 @@ Servo servo;
 int state = STATE_WAIT; // 現在の状態
 bool psd = false;       // 測距センサ検出フラグ
 int color = 0;          // ボール色: 0=なし,1=赤,2=黄,3=青
-int linePos = 0;        // ライン位置番号: 1～8
+int linePos = 0;        // ライン位置番号:0=なし, 1～5
 
 void setup() {
   Serial.begin(115200);
@@ -98,8 +98,6 @@ void setup() {
 void loop() {
   // センサ更新
   psd = readDistanceSensor();
-  color = readColor();
-  linePos = readLinePosition();
 
   switch (state) {
     case STATE_WAIT:
