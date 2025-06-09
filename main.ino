@@ -2,6 +2,8 @@
 
 #include <Arduino.h>
 #include <Wire.h> // I2C 用
+#include <Servo.h>
+Servo servo;
 
 /* ピン割り当て */
 // ライントレースセンサ (ch1～ch8)
@@ -14,47 +16,47 @@
 #define LINE_CH7_PIN A6
 #define LINE_CH8_PIN A7
 
-// エンコーダ1
-#define ENC1_A_PIN 19  // A 相
-#define ENC1_B_PIN 32  // B 相
-// エンコーダ2
-#define ENC2_A_PIN 18  // A 相
-#define ENC2_B_PIN 38  // B 相
+// エンコーダ
+#define ENC_RIGHT_A    18  // 右車輪 A 相
+#define ENC_RIGHT_B    38  // 右車輪 B 相
+#define ENC_LEFT_A     19  // 左車輪 A 相
+#define ENC_LEFT_B     32  // 左車輪 B 相
 
-// モータドライバ1
-#define M1_IN_A 7  // PWM
-#define M1_IN_B 6  // PWM
-// モータドライバ2
-#define M2_IN_A 5  // PWM
-#define M2_IN_B 4  // PWM
-// モータドライバ3
-#define M3_IN_A 3  // PWM
-#define M3_IN_B 2  // PWM
+// 車輪モータドライバ (AM2837)
+#define WHEEL_MD_RIGHT_A 5  // 右車輪入力 A (PWM)
+#define WHEEL_MD_RIGHT_B 4  // 右車輪入力 B (PWM)
+#define WHEEL_MD_LEFT_A  7  // 左車輪入力 A (PWM)
+#define WHEEL_MD_LEFT_B  6  // 左車輪入力 B (PWM)
+
+// 吸引モータドライバ (AM2837)
+#define SUCTION_MD_A   3  // 吸引用入力 A (PWM)
+#define SUCTION_MD_B   2  // 吸引用入力 B (PWM)
 
 // サーボ
-#define SERVO_PIN 9  // PWM
+#define SERVO_PIN      9  // PWM
 
 // 測距センサ (I2C)
-#define DIST_SDA_PIN 20
-#define DIST_SCL_PIN 21
+#define DIST_SDA_PIN  20
+#define DIST_SCL_PIN  21
 
 /* FSM 状態定義 */
-#define STATE_WAIT           1  // 待機
-#define STATE_FORWARD        2  // 直進
-#define STATE_TO_BALL_AREA   3  // ライントレースしてボールエリアへ
-#define STATE_DETECT_COLLECT 4  // ボール検出・回収
-#define STATE_TO_RED_GOAL    5  // 赤色ゴールへライントレース
-#define STATE_TO_YELLOW_GOAL 6  // 黄色ゴールへライントレース
-#define STATE_TO_BLUE_GOAL   7  // 青色ゴールへライントレース
-#define STATE_DROP_RED       8  // 赤色ゴールに投入
-#define STATE_DROP_YELLOW    9  // 黄色ゴールに投入
-#define STATE_DROP_BLUE     10  // 青色ゴールに投入
+#define STATE_WAIT           1
+#define STATE_FORWARD        2
+#define STATE_TO_BALL_AREA   3
+#define STATE_DETECT_COLLECT 4
+#define STATE_TO_RED_GOAL    5
+#define STATE_TO_YELLOW_GOAL 6
+#define STATE_TO_BLUE_GOAL   7
+#define STATE_DROP_RED       8
+#define STATE_DROP_YELLOW    9
+#define STATE_DROP_BLUE     10
+#define STATE_FUNCTION_TEST 11
 
 /* グローバル変数 */
 int state = STATE_WAIT; // 現在の状態
 bool psd = false;       // 測距センサ検出フラグ
-int color = 0;          // 読み取ったボール色: 0=なし,1=赤,2=黄,3=青
-int linePos = 0;        // ライン位置番号: 1〜8
+int color = 0;          // ボール色: 0=なし,1=赤,2=黄,3=青
+int linePos = 0;        // ライン位置番号: 1～8
 
 void setup() {
   Serial.begin(115200);
@@ -69,39 +71,52 @@ void setup() {
   pinMode(LINE_CH7_PIN, INPUT);
   pinMode(LINE_CH8_PIN, INPUT);
   // エンコーダ
-  pinMode(ENC1_A_PIN, INPUT);
-  pinMode(ENC1_B_PIN, INPUT);
-  pinMode(ENC2_A_PIN, INPUT);
-  pinMode(ENC2_B_PIN, INPUT);
+  pinMode(ENC_RIGHT_A, INPUT);
+  pinMode(ENC_RIGHT_B, INPUT);
+  pinMode(ENC_LEFT_A, INPUT);
+  pinMode(ENC_LEFT_B, INPUT);
   // モータドライバ
-  pinMode(M1_IN_A, OUTPUT);
-  pinMode(M1_IN_B, OUTPUT);
-  pinMode(M2_IN_A, OUTPUT);
-  pinMode(M2_IN_B, OUTPUT);
-  pinMode(M3_IN_A, OUTPUT);
-  pinMode(M3_IN_B, OUTPUT);
+  pinMode(WHEEL_MD_RIGHT_A, OUTPUT);
+  pinMode(WHEEL_MD_RIGHT_B, OUTPUT);
+  pinMode(WHEEL_MD_LEFT_A, OUTPUT);
+  pinMode(WHEEL_MD_LEFT_B, OUTPUT);
+  pinMode(SUCTION_MD_A, OUTPUT);
+  pinMode(SUCTION_MD_B, OUTPUT);
   // サーボ
   pinMode(SERVO_PIN, OUTPUT);
+  // 初期ヘルパー関数テスト用状態
+  state = STATE_FUNCTION_TEST;
 }
 
 void loop() {
-  // 測距センサ読み取り (I2C)
+  // センサ更新
   psd = readDistanceSensor();
-  // カラーセンサは別途実装
   color = readColor();
-  // ライン位置を推定
   linePos = readLinePosition();
 
   switch (state) {
     case STATE_WAIT:
-      stopMotors();
-      if (!psd && color == 0 && linePos == 0) {
-        state = STATE_FORWARD;
-      }
+      stopAll();
+      if (!psd && color == 0 && linePos == 0) state = STATE_FORWARD;
       break;
 
-    // 以下、前回実装通り
-    // ...
+    // ... 他ステート実装 ...
+
+    case STATE_FUNCTION_TEST:
+      // ヘルパー関数の動作確認例
+      controlServo(true);
+      delay(500);
+      controlServo(false);
+      controlSuction(true);
+      delay(500);
+      controlSuction(false);
+      driveStraight(200);
+      delay(1000);
+      stopAll();
+      rotateRobot(90);
+      stopAll();
+      state = STATE_WAIT;
+      break;
 
     default:
       state = STATE_WAIT;
@@ -112,33 +127,77 @@ void loop() {
 
 /* --- ヘルパー関数 --- */
 
-bool readDistanceSensor() {
-  // I2C 接続の測距センサ読み取り処理を実装
-  return false;
+// サーボ昇降 (true: 上げる, false: 下げる)
+void controlServo(bool up) {
+  servo.attach(SERVO_PIN);
+  servo.write(up ? 0 : 90);
+  delay(500);
+  servo.detach();
 }
 
-int readColor() {
-  // カラーセンサ読み取り処理を実装
-  return 0;
+// 吸引オンオフ (true: ON, false: OFF)
+void controlSuction(bool on) {
+  if (on) {
+    analogWrite(SUCTION_MD_A, 255);
+    analogWrite(SUCTION_MD_B, 0);
+  } else {
+    analogWrite(SUCTION_MD_A, 0);
+    analogWrite(SUCTION_MD_B, 0);
+  }
 }
 
-int readLinePosition() {
-  // ch1～ch8 を利用し現在ライン位置を推定
-  // 例: center センサのみ反応時は 4 とするなど
-  return 0;
+// ボール有無確認
+bool hasBall() {
+  return psd;
 }
 
-void moveForward() {}
-void lineTrace() {}
-void stopMotors() {
-  // 全モーターを停止
-  digitalWrite(M1_IN_A, LOW);
-  digitalWrite(M1_IN_B, LOW);
-  digitalWrite(M2_IN_A, LOW);
-  digitalWrite(M2_IN_B, LOW);
-  digitalWrite(M3_IN_A, LOW);
-  digitalWrite(M3_IN_B, LOW);
+// 前後移動: mm/s (正:前進, 負:後退)
+void driveStraight(int speed_mm_s) {
+  int pwm = constrain(map(abs(speed_mm_s), 0, 500, 0, 255), 0, 255);
+  if (speed_mm_s >= 0) {
+    analogWrite(WHEEL_MD_RIGHT_A, pwm);
+    analogWrite(WHEEL_MD_RIGHT_B, 0);
+    analogWrite(WHEEL_MD_LEFT_A, pwm);
+    analogWrite(WHEEL_MD_LEFT_B, 0);
+  } else {
+    analogWrite(WHEEL_MD_RIGHT_A, 0);
+    analogWrite(WHEEL_MD_RIGHT_B, pwm);
+    analogWrite(WHEEL_MD_LEFT_A, 0);
+    analogWrite(WHEEL_MD_LEFT_B, pwm);
+  }
 }
-void collectBall() {}
-void dropBall() {}
+
+// 旋回: 度 (正:右回転, 負:左回転)
+void rotateRobot(int degrees) {
+  int pwm = 150; // 要調整
+  unsigned long duration = abs(degrees) * 10UL; // 要調整
+  if (degrees >= 0) {
+    analogWrite(WHEEL_MD_RIGHT_A, 0);
+    analogWrite(WHEEL_MD_RIGHT_B, pwm);
+    analogWrite(WHEEL_MD_LEFT_A, pwm);
+    analogWrite(WHEEL_MD_LEFT_B, 0);
+  } else {
+    analogWrite(WHEEL_MD_RIGHT_A, pwm);
+    analogWrite(WHEEL_MD_RIGHT_B, 0);
+    analogWrite(WHEEL_MD_LEFT_A, 0);
+    analogWrite(WHEEL_MD_LEFT_B, pwm);
+  }
+  delay(duration);
+  stopAll();
+}
+
+// 全モーター停止
+void stopAll() {
+  analogWrite(WHEEL_MD_RIGHT_A, 0);
+  analogWrite(WHEEL_MD_RIGHT_B, 0);
+  analogWrite(WHEEL_MD_LEFT_A, 0);
+  analogWrite(WHEEL_MD_LEFT_B, 0);
+  analogWrite(SUCTION_MD_A, 0);
+  analogWrite(SUCTION_MD_B, 0);
+}
+
+// 以下センサ読み取りスタブ
+bool readDistanceSensor() { return false; }
+int readColor() { return 0; }
+int readLinePosition() { return 0; }
 
