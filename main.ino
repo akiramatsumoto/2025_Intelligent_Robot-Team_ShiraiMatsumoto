@@ -27,10 +27,10 @@ Servo servo;
 #define ENC_LEFT_B     32  // 左車輪 B 相
 
 // 車輪モータドライバ (AM2837)
-#define WHEEL_MD_RIGHT_A 5  // 右車輪入力 A (PWM)
-#define WHEEL_MD_RIGHT_B 4  // 右車輪入力 B (PWM)
-#define WHEEL_MD_LEFT_A  7  // 左車輪入力 A (PWM)
-#define WHEEL_MD_LEFT_B  6  // 左車輪入力 B (PWM)
+#define WHEEL_MD_RIGHT_FORWORD 4  // 右車輪入力 B (PWM)
+#define WHEEL_MD_RIGHT_BACK    5  // 右車輪入力 A (PWM)
+#define WHEEL_MD_LEFT_FORWORD  7  // 左車輪入力 A (PWM)
+#define WHEEL_MD_LEFT_BACK     6  // 左車輪入力 B (PWM)
 
 // 吸引モータドライバ (AM2837)
 #define SUCTION_MD_A   3  // 吸引用入力 A (PWM)
@@ -70,6 +70,7 @@ void setup() {
     while (1) delay(10);
   }
   Serial.println("VL53L0X 初期化完了");
+
   // ラインセンサ
   pinMode(LINE_CH1_PIN, INPUT);
   pinMode(LINE_CH2_PIN, INPUT);
@@ -79,20 +80,24 @@ void setup() {
   pinMode(LINE_CH6_PIN, INPUT);
   pinMode(LINE_CH7_PIN, INPUT);
   pinMode(LINE_CH8_PIN, INPUT);
+
   // エンコーダ
   pinMode(ENC_RIGHT_A, INPUT);
   pinMode(ENC_RIGHT_B, INPUT);
   pinMode(ENC_LEFT_A, INPUT);
   pinMode(ENC_LEFT_B, INPUT);
+
   // モータドライバ
-  pinMode(WHEEL_MD_RIGHT_A, OUTPUT);
-  pinMode(WHEEL_MD_RIGHT_B, OUTPUT);
-  pinMode(WHEEL_MD_LEFT_A, OUTPUT);
-  pinMode(WHEEL_MD_LEFT_B, OUTPUT);
+  pinMode(WHEEL_MD_RIGHT_FORWORD, OUTPUT);
+  pinMode(WHEEL_MD_RIGHT_BACK, OUTPUT);
+  pinMode(WHEEL_MD_LEFT_FORWORD, OUTPUT);
+  pinMode(WHEEL_MD_LEFT_BACK, OUTPUT);
   pinMode(SUCTION_MD_A, OUTPUT);
   pinMode(SUCTION_MD_B, OUTPUT);
+
   // サーボ
   pinMode(SERVO_PIN, OUTPUT);
+
   // 初期ヘルパー関数テスト用状態
   state = STATE_FUNCTION_TEST;
 }
@@ -153,20 +158,19 @@ void controlSuction(bool on) {
   }
 }
 
-
 // 前後移動: mm/s (正:前進, 負:後退)
 void driveStraight(int speed_mm_s) {
   int pwm = constrain(map(abs(speed_mm_s), 0, 500, 0, 255), 0, 255);
   if (speed_mm_s >= 0) {
-    analogWrite(WHEEL_MD_RIGHT_A, pwm);
-    analogWrite(WHEEL_MD_RIGHT_B, 0);
-    analogWrite(WHEEL_MD_LEFT_A, pwm);
-    analogWrite(WHEEL_MD_LEFT_B, 0);
+    analogWrite(WHEEL_MD_RIGHT_FORWORD, pwm);
+    analogWrite(WHEEL_MD_RIGHT_BACK, 0);
+    analogWrite(WHEEL_MD_LEFT_FORWORD, pwm);
+    analogWrite(WHEEL_MD_LEFT_BACK, 0);
   } else {
-    analogWrite(WHEEL_MD_RIGHT_A, 0);
-    analogWrite(WHEEL_MD_RIGHT_B, pwm);
-    analogWrite(WHEEL_MD_LEFT_A, 0);
-    analogWrite(WHEEL_MD_LEFT_B, pwm);
+    analogWrite(WHEEL_MD_RIGHT_FORWORD, 0);
+    analogWrite(WHEEL_MD_RIGHT_BACK, pwm);
+    analogWrite(WHEEL_MD_LEFT_FORWORD, 0);
+    analogWrite(WHEEL_MD_LEFT_BACK, pwm);
   }
 }
 
@@ -175,15 +179,15 @@ void rotateRobot(int degrees) {
   int pwm = 150; // 要調整
   unsigned long duration = abs(degrees) * 10UL; // 要調整
   if (degrees >= 0) {
-    analogWrite(WHEEL_MD_RIGHT_A, 0);
-    analogWrite(WHEEL_MD_RIGHT_B, pwm);
-    analogWrite(WHEEL_MD_LEFT_A, pwm);
-    analogWrite(WHEEL_MD_LEFT_B, 0);
+    analogWrite(WHEEL_MD_RIGHT_FORWORD, 0);
+    analogWrite(WHEEL_MD_RIGHT_BACK, pwm);
+    analogWrite(WHEEL_MD_LEFT_FORWORD, pwm);
+    analogWrite(WHEEL_MD_LEFT_BACK, 0);
   } else {
-    analogWrite(WHEEL_MD_RIGHT_A, pwm);
-    analogWrite(WHEEL_MD_RIGHT_B, 0);
-    analogWrite(WHEEL_MD_LEFT_A, 0);
-    analogWrite(WHEEL_MD_LEFT_B, pwm);
+    analogWrite(WHEEL_MD_RIGHT_FORWORD, pwm);
+    analogWrite(WHEEL_MD_RIGHT_BACK, 0);
+    analogWrite(WHEEL_MD_LEFT_FORWORD, 0);
+    analogWrite(WHEEL_MD_LEFT_BACK, pwm);
   }
   delay(duration);
   stopAll();
@@ -191,10 +195,10 @@ void rotateRobot(int degrees) {
 
 // 全モーター停止
 void stopAll() {
-  analogWrite(WHEEL_MD_RIGHT_A, 0);
-  analogWrite(WHEEL_MD_RIGHT_B, 0);
-  analogWrite(WHEEL_MD_LEFT_A, 0);
-  analogWrite(WHEEL_MD_LEFT_B, 0);
+  analogWrite(WHEEL_MD_RIGHT_FORWORD, 0);
+  analogWrite(WHEEL_MD_RIGHT_BACK, 0);
+  analogWrite(WHEEL_MD_LEFT_FORWORD, 0);
+  analogWrite(WHEEL_MD_LEFT_BACK, 0);
   analogWrite(SUCTION_MD_A, 0);
   analogWrite(SUCTION_MD_B, 0);
 }
@@ -213,3 +217,4 @@ bool readDistanceSensor() {
     return false;
   }
 }
+
