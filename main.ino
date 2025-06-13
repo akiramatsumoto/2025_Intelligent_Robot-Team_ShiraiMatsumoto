@@ -64,12 +64,8 @@ int linePos = 0;        // ライン位置番号:0=なし, 1～5
 
 void setup() {
   Serial.begin(115200);
-  Wire.begin(); // SDA=20, SCL=21 の場合は別途 Wire.setPins() が必要な環境もあり
-  if (!lox.begin()) {
-    Serial.println("ERROR: VL53L0X 初期化失敗");
-    while (1) delay(10);
-  }
-  Serial.println("VL53L0X 初期化完了");
+  Serial.print("A");
+
 
   // ラインセンサ
   pinMode(LINE_CH1_PIN, INPUT);
@@ -100,12 +96,11 @@ void setup() {
 
   // 初期ヘルパー関数テスト用状態
   state = STATE_FUNCTION_TEST;
+  Serial.print("A");
 }
 
 void loop() {
-  // センサ更新
-  psd = readDistanceSensor();
-
+  Serial.print("A");
   switch (state) {
     case STATE_WAIT:
       stopAll();
@@ -115,19 +110,14 @@ void loop() {
     // ... 他ステート実装 ...
 
     case STATE_FUNCTION_TEST:
-      // ヘルパー関数の動作確認例
-      controlServo(true);
-      delay(500);
-      controlServo(false);
-      controlSuction(true);
-      delay(500);
-      controlSuction(false);
-      driveStraight(200);
-      delay(1000);
+      driveStraight(255);
+      delay(1500);
       stopAll();
+      delay(1500);
       rotateRobot(90);
       stopAll();
-      state = STATE_WAIT;
+      delay(1500);
+      state = STATE_FUNCTION_TEST;
       break;
 
     default:
@@ -160,7 +150,7 @@ void controlSuction(bool on) {
 
 // 前後移動: mm/s (正:前進, 負:後退)
 void driveStraight(int pwm) {
-  if (speed_mm_s >= 0) {
+  if (pwm >= 0) {
     analogWrite(WHEEL_MD_RIGHT_FORWORD, pwm);
     analogWrite(WHEEL_MD_RIGHT_BACK, 0);
     analogWrite(WHEEL_MD_LEFT_FORWORD, pwm);
@@ -176,7 +166,7 @@ void driveStraight(int pwm) {
 // 旋回: 度 (正:右回転, 負:左回転)
 void rotateRobot(int degrees) {
   int pwm = 100; // 要調整
-  float duration = abs(degrees) * 0.45; // 要調整
+  float duration = abs(degrees) * 4.5; // 要調整
   if (degrees >= 0) {
     analogWrite(WHEEL_MD_RIGHT_FORWORD, 0);
     analogWrite(WHEEL_MD_RIGHT_BACK, pwm);
