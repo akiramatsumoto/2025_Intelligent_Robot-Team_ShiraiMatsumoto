@@ -159,8 +159,7 @@ void controlSuction(bool on) {
 }
 
 // 前後移動: mm/s (正:前進, 負:後退)
-void driveStraight(int speed_mm_s) {
-  int pwm = constrain(map(abs(speed_mm_s), 0, 500, 0, 255), 0, 255);
+void driveStraight(int pwm) {
   if (speed_mm_s >= 0) {
     analogWrite(WHEEL_MD_RIGHT_FORWORD, pwm);
     analogWrite(WHEEL_MD_RIGHT_BACK, 0);
@@ -176,8 +175,8 @@ void driveStraight(int speed_mm_s) {
 
 // 旋回: 度 (正:右回転, 負:左回転)
 void rotateRobot(int degrees) {
-  int pwm = 150; // 要調整
-  unsigned long duration = abs(degrees) * 10UL; // 要調整
+  int pwm = 100; // 要調整
+  float duration = abs(degrees) * 0.45; // 要調整
   if (degrees >= 0) {
     analogWrite(WHEEL_MD_RIGHT_FORWORD, 0);
     analogWrite(WHEEL_MD_RIGHT_BACK, pwm);
