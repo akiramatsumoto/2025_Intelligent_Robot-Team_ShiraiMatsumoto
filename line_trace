@@ -1,0 +1,99 @@
+// ピン宣言
+const int sensor_L = A3;
+const int sensor_R = A4;
+
+const uint8_t IN_A = 5;
+const uint8_t IN_B = 4;
+const uint8_t IN_A2 = 7;
+const uint8_t IN_B2 = 6;
+
+// PID変数
+float Kp = 10.0; //ここ変える!
+float Ki = 0.01; //ここ変える!
+float Kd = 5.0; //ここ変える!
+
+float I_diff = 0;
+float past_diff = 0;
+
+#define I_max 100 //ここ変えれる
+
+// その他
+float base_speed = 50;  // 基本速度（0〜255）ここ変える!
+float speed_l = 0;
+float speed_r = 0;
+
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(sensor_L, INPUT);
+  pinMode(sensor_R, INPUT);
+
+  pinMode(IN_A, OUTPUT);
+  pinMode(IN_B, OUTPUT);
+  pinMode(IN_A2, OUTPUT);
+  pinMode(IN_B2, OUTPUT);
+}
+
+void motorControl(float left, float right) {
+  // 安全な範囲に制限（0〜255）
+  //left = constrain(left, -100, 100);
+  //right = constrain(right, -100, 100);
+
+  // 左モーター制御
+  if (left >= 0) {
+    analogWrite(IN_A2, left);
+    analogWrite(IN_B2, 0);
+  } else {
+    analogWrite(IN_A2, 0);
+    analogWrite(IN_B2, -left);
+  }
+
+  // 右モーター制御
+  if (right >= 0) {
+    analogWrite(IN_A, 0);
+    analogWrite(IN_B, right);
+  } else {
+    analogWrite(IN_A, -right);
+    analogWrite(IN_B, 0);
+  }
+}
+
+void loop() {
+  //センサ値はbit下げて分解能下げが良さげな感じの雰囲気がした気がする
+  int sensor_value_L = analogRead(sensor_L) >> 2;  // 左センサ値
+  int sensor_value_R = (analogRead(sensor_R) >> 2) * 1.2;  // 右センサ値 実際の環境で試さないと何とも言えぬ
+  
+  int center = (sensor_value_L + sensor_value_R) / 2;
+  float diff = (sensor_value_R - center) - (sensor_value_L - center);
+
+  // PID制御計算
+  float rotate = Kp * diff + Ki * I_diff + Kd * (diff - past_diff);
+
+  past_diff = diff;
+  I_diff += diff;
+  I_diff = constrain(I_diff, -I_max, I_max);
+  
+
+  // 左右の速度調整
+  speed_l = constrain(base_speed + rotate, 0, 50); //ここ変える!
+  speed_r = constrain(base_speed - rotate, 0, 100) * 1.5; //ここ変える!
+
+  // モーター制御
+  motorControl(speed_l, speed_r);
+
+  // デバッグ用出力
+  Serial.print("L: ");
+  Serial.print(sensor_value_L);
+  Serial.print("  R: ");
+  Serial.print(sensor_value_R);
+  Serial.print("  diff: ");
+  Serial.print(diff);
+  Serial.print("  rotate: ");
+  Serial.println(rotate);
+  Serial.print("  speed_l: ");
+  Serial.println(speed_l);
+  Serial.print("  speed_r: ");
+  Serial.println(speed_r);
+  
+  delay(50);
+}
