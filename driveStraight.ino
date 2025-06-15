@@ -1,4 +1,4 @@
-// Encoderライブラリ(PCINT)を使った左右車輪P制御サンプル
+// Encoderライブラリ(PCINT)を使った左右車輪PID制御サンプル
 #include <Arduino.h>
 #include <Encoder.h>  // PCINTを用いたエンコーダ処理
 
@@ -14,14 +14,20 @@
 #define WHEEL_MD_RIGHT_FORWARD 4  // 右車輪前進 (PWM)
 #define WHEEL_MD_RIGHT_BACK    5  // 右車輪後退 (PWM)
 
+// 制御周期設定 (ミリ秒)
+const unsigned long CONTROL_PERIOD = 20;  // 任意に変更可能
+const float CONTROL_PERIOD_SEC = CONTROL_PERIOD / 1000.0;  // 秒単位
+
+// 1秒あたりのエンコーダパルス数目標 (1回転=約3200パルス)
+const long targetPulsesPerSec = 3200;
+
 // Encoderオブジェクト生成 (PCINT対応)
 Encoder encLeft(ENC_LEFT_A, ENC_LEFT_B);
 Encoder encRight(ENC_RIGHT_A, ENC_RIGHT_B);
 
-// 制御目標・ゲイン
-const long targetPulses = 3200;      // 1秒あたりの目標パルス
-const float KpRight = 0.01;          // 右車輪P制御ゲイン
-const float KpLeft  = 0.005;         // 左車輪P制御ゲイン
+// PIDゲイン (要調整)
+const float KpRight = 0.5, KiRight = 0.1, KdRight = 0.05;
+const float KpLeft  = 0.5, KiLeft  = 0.1, KdLeft  = 0.05;
 
 // 制御用変数
 long prevCountR = 0;
@@ -30,63 +36,68 @@ int pwmRight    = 77;  // 初期PWM値（右）
 int pwmLeft     = 55;  // 初期PWM値（左）
 unsigned long prevTime = 0;
 
+float integralR = 0, integralL = 0;
+long prevErrorR = 0, prevErrorL = 0;
+
 void setup() {
   Serial.begin(115200);
 
-  // モータドライバ出力設定
   pinMode(WHEEL_MD_LEFT_FORWARD,  OUTPUT);
   pinMode(WHEEL_MD_LEFT_BACK,     OUTPUT);
   pinMode(WHEEL_MD_RIGHT_FORWARD, OUTPUT);
   pinMode(WHEEL_MD_RIGHT_BACK,    OUTPUT);
 
-  // エンコーダ初期リセット
   encLeft.write(0);
   encRight.write(0);
-
   prevCountL = encLeft.read();
   prevCountR = encRight.read();
   prevTime   = millis();
+
+  Serial.println("ErrL\tErrR");
 }
 
 void loop() {
   unsigned long now = millis();
 
-  // 駆動
-  driveLeft(pwmLeft);
+  driveLeft(pwmLeft); 
   driveRight(pwmRight);
 
-  // 1秒周期でP制御
-  if (now - prevTime >= 1000) {
+  if (now - prevTime >= CONTROL_PERIOD) {
     long currL = encLeft.read();
     long currR = encRight.read();
 
-    long deltaL = prevCountL - currL;  // 逆向き取り付け対応
+    long deltaL = prevCountL - currL;
     long deltaR = currR - prevCountR;
+
+    long targetPulses = (targetPulsesPerSec * CONTROL_PERIOD) / 1000;
 
     long errorL = targetPulses - deltaL;
     long errorR = targetPulses - deltaR;
 
-    pwmLeft  += int(KpLeft  * errorL);
-    pwmRight += int(KpRight * errorR);
+    integralL += errorL * CONTROL_PERIOD_SEC;
+    integralR += errorR * CONTROL_PERIOD_SEC;
+
+    long derivativeL = (errorL - prevErrorL) / CONTROL_PERIOD_SEC;
+    long derivativeR = (errorR - prevErrorR) / CONTROL_PERIOD_SEC;
+
+    pwmLeft  += int(KpLeft * errorL + KiLeft * integralL + KdLeft * derivativeL);
+    pwmRight += int(KpRight * errorR + KiRight * integralR + KdRight * derivativeR);
 
     pwmLeft  = constrain(pwmLeft,  0, 255);
     pwmRight = constrain(pwmRight, 0, 255);
 
-    // デバッグ出力
-    Serial.print("DeltaL:"); Serial.print(deltaL);
-    Serial.print(" ErrorL:"); Serial.print(errorL);
-    Serial.print(" PWM_L:"); Serial.println(pwmLeft);
-    Serial.print("DeltaR:"); Serial.print(deltaR);
-    Serial.print(" ErrorR:"); Serial.print(errorR);
-    Serial.print(" PWM_R:"); Serial.println(pwmRight);
+    Serial.print(errorL);
+    Serial.print('\t');
+    Serial.println(errorR);
 
     prevCountL = currL;
     prevCountR = currR;
-    prevTime   += 1000;
+    prevErrorL = errorL;
+    prevErrorR = errorR;
+    prevTime   += CONTROL_PERIOD;
   }
 }
 
-// 左車輪のみ駆動: pwm 0～255
 void driveLeft(int pwm) {
   if (pwm >= 0) {
     analogWrite(WHEEL_MD_LEFT_FORWARD, pwm);
@@ -98,7 +109,6 @@ void driveLeft(int pwm) {
   }
 }
 
-// 右車輪のみ駆動: pwm 0～255
 void driveRight(int pwm) {
   if (pwm >= 0) {
     analogWrite(WHEEL_MD_RIGHT_FORWARD, pwm);
@@ -110,11 +120,9 @@ void driveRight(int pwm) {
   }
 }
 
-// 全停止関数
 void stopAll() {
   analogWrite(WHEEL_MD_LEFT_FORWARD,  0);
   analogWrite(WHEEL_MD_LEFT_BACK,     0);
   analogWrite(WHEEL_MD_RIGHT_FORWARD, 0);
   analogWrite(WHEEL_MD_RIGHT_BACK,    0);
 }
-
