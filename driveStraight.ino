@@ -1,4 +1,4 @@
-// Encoderライブラリ(PCINT)を使った累積パルスカウントサンプル
+// Encoderライブラリ(PCINT)を使った1秒ごとのパルス数計測サンプル
 #include <Arduino.h>
 #include <Encoder.h>  // PCINTを用いたエンコーダ処理
 
@@ -18,50 +18,51 @@
 Encoder encRight(ENC_RIGHT_A, ENC_RIGHT_B);
 Encoder encLeft(ENC_LEFT_A,  ENC_LEFT_B);
 
+long prevCountR = 0;
+long prevCountL = 0;
+
 void setup() {
   Serial.begin(115200);
-
+  
   // モータドライバ出力設定
   pinMode(WHEEL_MD_RIGHT_FORWARD, OUTPUT);
   pinMode(WHEEL_MD_RIGHT_BACK,    OUTPUT);
   pinMode(WHEEL_MD_LEFT_FORWARD,  OUTPUT);
   pinMode(WHEEL_MD_LEFT_BACK,     OUTPUT);
 
-  // 初期カウントをゼロにリセット（必要時）
+  // エンコーダ初期リセット
   encRight.write(0);
   encLeft.write(0);
+
+  // 初回差分計測用
+  prevCountR = encRight.read();
+  prevCountL = encLeft.read();
 }
 
 void loop() {
-  // モータを1秒間駆動
-  driveStraight(65);
+  // 1秒間駆動
+  analogWrite(WHEEL_MD_RIGHT_FORWARD, 77);
+  analogWrite(WHEEL_MD_RIGHT_BACK,    0);
+
   delay(1000);
 
-  // 累積カウント値を取得（リセットしない）
-  long countR = encRight.read();
-  long countL = encLeft.read();
+  // 現在のカウント取得
+  long currR = encRight.read();
+  long currL = encLeft.read();
 
-  Serial.print("[累積] Right Count: "); Serial.print(countR);
-  Serial.print("  Left Count: ");  Serial.println(countL);
+  // 1秒ごとのパルス数計算
+  long deltaR = currR - prevCountR;
+  long deltaL = currL - prevCountL;
 
-  delay(500);
-}
+  // 出力
+  Serial.print("Pulses per 1s → Right: "); Serial.print(deltaR);
+  Serial.print("  Left: ");               Serial.println(deltaL);
 
-// 直進: pwm (-255～255)
-// 65以下ではトルクが小さすぎてホイールを回せない
-void driveStraight(int pwm) {
-  if (pwm >= 0) {
-    analogWrite(WHEEL_MD_RIGHT_FORWARD, pwm);
-    analogWrite(WHEEL_MD_RIGHT_BACK,    0);
-    analogWrite(WHEEL_MD_LEFT_FORWARD,  pwm);
-    analogWrite(WHEEL_MD_LEFT_BACK,     0);
-  } else {
-    pwm = -pwm;
-    analogWrite(WHEEL_MD_RIGHT_FORWARD, 0);
-    analogWrite(WHEEL_MD_RIGHT_BACK,    pwm);
-    analogWrite(WHEEL_MD_LEFT_FORWARD,  0);
-    analogWrite(WHEEL_MD_LEFT_BACK,     pwm);
-  }
+  // 次回用に値を保存
+  prevCountR = currR;
+  prevCountL = currL;
+
+  // 停止または継続は不要（要件に記載なし）
 }
 
 // 全モーター停止
@@ -71,3 +72,4 @@ void stopAll() {
   analogWrite(WHEEL_MD_LEFT_FORWARD,  0);
   analogWrite(WHEEL_MD_LEFT_BACK,     0);
 }
+
