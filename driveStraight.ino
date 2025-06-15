@@ -26,8 +26,8 @@ Encoder encLeft(ENC_LEFT_A, ENC_LEFT_B);
 Encoder encRight(ENC_RIGHT_A, ENC_RIGHT_B);
 
 // PIDゲイン (要調整)
-const float KpRight = 0.5, KiRight = 0.1, KdRight = 0.05;
-const float KpLeft  = 0.5, KiLeft  = 0.1, KdLeft  = 0.05;
+const float KpRight = 0.6 , KiRight = 0.02 * 0.5, KdRight = 0.1;
+const float KpLeft  = 0.6, KiLeft  = 0.02 * 0.5, KdLeft  = 0.1;
 
 // 制御用変数
 long prevCountR = 0;
