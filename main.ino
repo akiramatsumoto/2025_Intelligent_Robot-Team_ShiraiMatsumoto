@@ -1,13 +1,7 @@
-// 白井への連絡
-// ゆっくり走っていいから横に長いラインは確実に踏んでほしい
-/* メインプログラム: FSM によるロボット動作制御 (Arduino Mega2560 Rev3 ピン接続) */
-
 #include <Arduino.h>
-#include <Wire.h> // I2C 用
+#include <Encoder.h>
+#include <Wire.h>
 #include <Adafruit_VL53L0X.h>
-#include <Servo.h>
-Adafruit_VL53L0X lox = Adafruit_VL53L0X();
-Servo servo;
 
 /* ピン割り当て */
 // ライントレースセンサ (ch1～ch8)
@@ -27,10 +21,10 @@ Servo servo;
 #define ENC_LEFT_B     32  // 左車輪 B 相
 
 // 車輪モータドライバ (AM2837)
-#define WHEEL_MD_RIGHT_FORWORD 4  // 右車輪入力 B (PWM)
-#define WHEEL_MD_RIGHT_BACK    5  // 右車輪入力 A (PWM)
-#define WHEEL_MD_LEFT_FORWORD  7  // 左車輪入力 A (PWM)
-#define WHEEL_MD_LEFT_BACK     6  // 左車輪入力 B (PWM)
+#define WHEEL_MD_RIGHT_A 5  // 右車輪入力 A (PWM)
+#define WHEEL_MD_RIGHT_B 4  // 右車輪入力 B (PWM)
+#define WHEEL_MD_LEFT_A  7  // 左車輪入力 A (PWM)
+#define WHEEL_MD_LEFT_B  6  // 左車輪入力 B (PWM)
 
 // 吸引モータドライバ (AM2837)
 #define SUCTION_MD_A   3  // 吸引用入力 A (PWM)
@@ -47,26 +41,41 @@ Servo servo;
 #define STATE_WAIT           1
 #define STATE_FORWARD        2
 #define STATE_TO_BALL_AREA   3
-#define STATE_DETECT_COLLECT 4
-#define STATE_TO_RED_GOAL    5
-#define STATE_TO_YELLOW_GOAL 6
-#define STATE_TO_BLUE_GOAL   7
-#define STATE_DROP_RED       8
-#define STATE_DROP_YELLOW    9
-#define STATE_DROP_BLUE     10
-#define STATE_FUNCTION_TEST 11
+#define STATE_BALL_DETECT    4
+#define STATE BALL_COLLECT   5
+#define STATE_TO_RED_GOAL    6
+#define STATE_TO_YELLOW_GOAL 7
+#define STATE_TO_BLUE_GOAL   8
+#define STATE_DROP_RED       9
+#define STATE_DROP_YELLOW   10
+#define STATE_DROP_BLUE     11
+#define STATE_FUNCTION_TEST 12
+
+#define ROTATE_C 5000
+
+#define PWM_RIGHT_MAX 77
+#define PWM_LEFT_MAX  55
+#define PWM_RIGHT_MIN 65
+#define PWM_LEFT_MIN  50
+
+#define TOLERANCE 10
+#define KP 0.3
+#define KI 0.02
+
+#define START_TO_RINE 1000
+
+Encoder encoderRight(ENC_RIGHT_A, ENC_RIGHT_B);
+Encoder encoderLeft(ENC_LEFT_A, ENC_LEFT_B);
+Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 
 /* グローバル変数 */
 int state = STATE_WAIT; // 現在の状態
 bool psd = false;       // 測距センサ検出フラグ
 int color = 0;          // ボール色: 0=なし,1=赤,2=黄,3=青
-int linePos = 0;        // ライン位置番号:0=なし, 1～5
+int linePos = 0;        // ライン位置番号: 1～8
 
 void setup() {
   Serial.begin(115200);
-  Serial.print("A");
-
-
   // ラインセンサ
   pinMode(LINE_CH1_PIN, INPUT);
   pinMode(LINE_CH2_PIN, INPUT);
@@ -76,48 +85,181 @@ void setup() {
   pinMode(LINE_CH6_PIN, INPUT);
   pinMode(LINE_CH7_PIN, INPUT);
   pinMode(LINE_CH8_PIN, INPUT);
-
-  // エンコーダ
-  pinMode(ENC_RIGHT_A, INPUT);
-  pinMode(ENC_RIGHT_B, INPUT);
-  pinMode(ENC_LEFT_A, INPUT);
-  pinMode(ENC_LEFT_B, INPUT);
-
   // モータドライバ
   pinMode(WHEEL_MD_RIGHT_FORWORD, OUTPUT);
   pinMode(WHEEL_MD_RIGHT_BACK, OUTPUT);
   pinMode(WHEEL_MD_LEFT_FORWORD, OUTPUT);
   pinMode(WHEEL_MD_LEFT_BACK, OUTPUT);
-  pinMode(SUCTION_MD_A, OUTPUT);
-  pinMode(SUCTION_MD_B, OUTPUT);
+  // エンコーダ
+  encoderRight.write(0);
+  encoderLeft.write(0);
 
-  // サーボ
-  pinMode(SERVO_PIN, OUTPUT);
-
-  // 初期ヘルパー関数テスト用状態
-  state = STATE_FUNCTION_TEST;
-  Serial.print("A");
+  Wire.begin();
+  if (!lox.begin()) {
+    Serial.println("VL53L0X 初期化失敗");
+    while (1);
+  }
+  Serial.println("VL53L0X 初期化完了");
 }
 
 void loop() {
-  Serial.print("A");
+
   switch (state) {
     case STATE_WAIT:
       stopAll();
-      if (!psd && color == 0 && linePos == 0) state = STATE_FORWARD;
+      delay(15000);
+      state = STATE_FORWARD;
       break;
 
-    // ... 他ステート実装 ...
+    case STATE_FORWARD:
+      driveStraight();
+      delay();
+      state = STATE_TO_BALL_AREA;
+      break;
+
+    case STATE_TO_BALL_AREA:
+    // 白井ここ書いて
+
+    case STATE_BALL_DETECT:
+    // ここで色の決定までする
+
+    case STATE_BALL_COLLECT:
+      encoderRight.write(0);
+      encoderLeft.write(0);
+
+      // ボール検出まで直進
+      driveStraight();
+      while (!isBallDetected()) {
+        delay(10);
+      }
+      stopAll();
+
+      // 走行距離を記録
+      long distanceRight = abs(encoderRight.read());
+      long distanceLeft  = abs(encoderLeft.read());
+      long avgDistance = (distanceRight + distanceLeft) / 2;
+      Serial.print("進んだ距離: "); Serial.println(avgDistance);
+
+      delay(1000);
+
+      rotateRobot(10, 18);
+      delay(1000);
+
+      stopAll();
+      delay(1000);
+
+      // 記録した距離だけ戻る
+      encoderRight.write(0);
+      encoderLeft.write(0);
+      driveStraight();
+      while (true) {
+        long posR = abs(encoderRight.read());
+        long posL = abs(encoderLeft.read());
+        long avgPos = (posR + posL) / 2;
+
+        if (avgPos >= avgDistance) {
+          stopAll();
+          break;
+        }
+        delay(10);
+      }
+    
+    case STATE_TO_RED_GOAL:
+    // 白井ここ書いて 
+
+    case STATE_TO_YELLOW_GOAL:
+    // 白井ここ書いて 
+
+    case STATE_TO_BLUE_GOAL:
+    // 白井ここ書いて 
+    
+    case STATE_DROP_RED:
+      // 赤色ゴールのモーション
+      stopAll();
+      delay(1000);
+
+      rotateRobot(10, 9);
+
+      stopAll();
+      delay(1000);
+
+      driveStraight();
+      delay(TO_RED_GOAL);
+
+      stopAll();
+      delay(1000);
+
+      // サーボモータを下げる
+
+      rotateRobot(10, 18);
+
+      stopAll();
+      delay(1000);
+
+      driveStraight();
+      delay(TO_RED_GOAL);
+
+      rotateRobot(10, 9);
+
+      stopAll();
+      delay(1000);
+
+    case STATE_DROP_YELLOW:
+      // 黄色ゴールのモーション
+      stopAll();
+      delay(1000);
+
+      rotateRobot(10, 9);
+
+      stopAll();
+      delay(1000);
+
+      driveStraight();
+      delay(TO_YELLOW_GOAL);
+
+      stopAll();
+      delay(1000);
+
+      // サーボモータを下げる
+
+      rotateRobot(10, 18);
+
+      stopAll();
+      delay(1000);
+
+      driveStraight();
+      delay(TO_YELLOW_GOAL);
+
+      rotateRobot(10, 9);
+
+      stopAll();
+      delay(1000);
+
+    case STATE_DROP_BLUE:
+      // 青色ゴールのモーション
+      stopAll();
+      delay(1000);
+
+      driveStraight();
+      delay(TO_BLUE_GOAL);
+
+      stopAll();
+      delay(1000);
+
+      // サーボモータを下げる
+
+      rotateRobot(10, 18);
+
+      stopAll();
+      delay(1000);
+
+      driveStraight();
+      delay(TO_BLUE_GOAL);
+
+      stopAll();
+      delay(1000);
 
     case STATE_FUNCTION_TEST:
-      driveStraight(255);
-      delay(1500);
-      stopAll();
-      delay(1500);
-      rotateRobot(90);
-      stopAll();
-      delay(1500);
-      state = STATE_FUNCTION_TEST;
       break;
 
     default:
@@ -127,83 +269,77 @@ void loop() {
   delay(50);
 }
 
-/* --- ヘルパー関数 --- */
-
-// サーボ昇降 (true: 上げる, false: 下げる)
-void controlServo(bool up) {
-  servo.attach(SERVO_PIN);
-  servo.write(up ? 0 : 90);
-  delay(500);
-  servo.detach();
+void driveStraight() {
+  digitalWrite(WHEEL_MD_RIGHT_FORWORD, HIGH);
+  digitalWrite(WHEEL_MD_LEFT_FORWORD, HIGH);
 }
 
-// 吸引オンオフ (true: ON, false: OFF)
-void controlSuction(bool on) {
-  if (on) {
-    analogWrite(SUCTION_MD_A, 255);
-    analogWrite(SUCTION_MD_B, 0);
-  } else {
-    analogWrite(SUCTION_MD_A, 0);
-    analogWrite(SUCTION_MD_B, 0);
+void rotateRobot(float degree, int repeat) {
+  for (int i = 0; i < repeat; i++) {
+    encoderRight.write(0);
+    encoderLeft.write(0);
+
+    long targetCount = (long)(ROTATE_C * (abs(degree) / 360.0));
+    bool clockwise = (degree > 0);
+
+    long errorSum = 0;
+    
+    while (true) {
+      long posRight = encoderRight.read();
+      long posLeft  = encoderLeft.read();
+      long averagePos = (abs(posRight) + abs(posLeft)) / 2;
+      long error = targetCount - averagePos;
+      errorSum += error;
+
+      Serial.print("Target:");
+      Serial.print(targetCount);
+      Serial.print(" Current:");
+      Serial.print(averagePos);
+      Serial.print(" Error:");
+      Serial.println(error);
+
+      // PI制御で速度決定
+      float control = KP * error + KI * errorSum;
+      control = constrain(control, 0.0, 1.0); // 正規化（0〜1）
+
+      uint8_t pwmRight = max(PWM_RIGHT_MIN, (uint8_t)(PWM_RIGHT_MAX * control));
+      uint8_t pwmLeft  = max(PWM_LEFT_MIN,  (uint8_t)(PWM_LEFT_MAX  * control));
+
+      // 出力
+      if (clockwise) {
+        analogWrite(WHEEL_MD_RIGHT_FORWORD, pwmRight);
+        analogWrite(WHEEL_MD_RIGHT_BACK, 0);
+        analogWrite(WHEEL_MD_LEFT_FORWORD, 0);
+        analogWrite(WHEEL_MD_LEFT_BACK, pwmLeft);
+      } else {
+        analogWrite(WHEEL_MD_RIGHT_FORWORD, 0);
+        analogWrite(WHEEL_MD_RIGHT_BACK, pwmRight);
+        analogWrite(WHEEL_MD_LEFT_FORWORD, pwmLeft);
+        analogWrite(WHEEL_MD_LEFT_BACK, 0);
+      }
+
+      if (error <= TOLERANCE) {
+        stopAll();
+        break;
+      }
+
+      delay(20);
+    }
+
+    delay(1000); // 各回転の間に少し待つ
   }
 }
 
-// 前後移動: mm/s (正:前進, 負:後退)
-void driveStraight(int pwm) {
-  if (pwm >= 0) {
-    analogWrite(WHEEL_MD_RIGHT_FORWORD, pwm);
-    analogWrite(WHEEL_MD_RIGHT_BACK, 0);
-    analogWrite(WHEEL_MD_LEFT_FORWORD, pwm);
-    analogWrite(WHEEL_MD_LEFT_BACK, 0);
-  } else {
-    analogWrite(WHEEL_MD_RIGHT_FORWORD, 0);
-    analogWrite(WHEEL_MD_RIGHT_BACK, pwm);
-    analogWrite(WHEEL_MD_LEFT_FORWORD, 0);
-    analogWrite(WHEEL_MD_LEFT_BACK, pwm);
-  }
-}
-
-// 旋回: 度 (正:右回転, 負:左回転)
-void rotateRobot(int degrees) {
-  int pwm = 100; // 要調整
-  float duration = abs(degrees) * 4.5; // 要調整
-  if (degrees >= 0) {
-    analogWrite(WHEEL_MD_RIGHT_FORWORD, 0);
-    analogWrite(WHEEL_MD_RIGHT_BACK, pwm);
-    analogWrite(WHEEL_MD_LEFT_FORWORD, pwm);
-    analogWrite(WHEEL_MD_LEFT_BACK, 0);
-  } else {
-    analogWrite(WHEEL_MD_RIGHT_FORWORD, pwm);
-    analogWrite(WHEEL_MD_RIGHT_BACK, 0);
-    analogWrite(WHEEL_MD_LEFT_FORWORD, 0);
-    analogWrite(WHEEL_MD_LEFT_BACK, pwm);
-  }
-  delay(duration);
-  stopAll();
-}
-
-// 全モーター停止
 void stopAll() {
   analogWrite(WHEEL_MD_RIGHT_FORWORD, 0);
   analogWrite(WHEEL_MD_RIGHT_BACK, 0);
   analogWrite(WHEEL_MD_LEFT_FORWORD, 0);
   analogWrite(WHEEL_MD_LEFT_BACK, 0);
-  analogWrite(SUCTION_MD_A, 0);
-  analogWrite(SUCTION_MD_B, 0);
 }
 
-bool readDistanceSensor() {
+bool isBallDetected() {
   VL53L0X_RangingMeasurementData_t meas;
-  // false: デバッグ用シリアル出力なし
   lox.rangingTest(&meas, false);
-
-  // RangeStatus が 4 以外なら有効値
-  if (meas.RangeStatus != 4) {
-    // meas.RangeMilliMeter は距離[mm]
-    return (meas.RangeMilliMeter <= 50);
-  } else {
-    // エラー時は「遠い」とみなす
-    return false;
-  }
+  long distance = (meas.RangeStatus != 4) ? meas.RangeMilliMeter : -1;
+  return (distance >= 0 && distance <= 80);
 }
-
