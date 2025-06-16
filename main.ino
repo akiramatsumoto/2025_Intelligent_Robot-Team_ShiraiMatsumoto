@@ -121,7 +121,11 @@ void loop() {
     // 白井ここ書いて
 
     case STATE_BALL_DETECT:
-    // ここで色の決定までする
+      if (stringComplete) {
+        processSerialData(inputString);
+        inputString = "";
+        stringComplete = false;
+      }
 
     case STATE_BALL_COLLECT:
       encoderRight.write(0);
@@ -133,7 +137,7 @@ void loop() {
         delay(10);
       }
       stopAll();
-
+//
       // 走行距離を記録
       long distanceRight = abs(encoderRight.read());
       long distanceLeft  = abs(encoderLeft.read());
@@ -163,6 +167,20 @@ void loop() {
         }
         delay(10);
       }
+      if (color == 1) {
+        state = STATE_TO_RED_GOAL;
+        break;
+      } else if (color == 2) {
+        state = STATE_TO_YELLOW_GOAL;
+        break;
+      } else if (color == 3) {
+        state = STATE_TO_BLUE_GOAL;
+        break;
+      } else {
+        state = STATE_TO_RED_GOAL;  // 未知の色
+        break;
+      }
+      
     
     case STATE_TO_RED_GOAL:
     // 白井ここ書いて 
@@ -342,4 +360,57 @@ bool isBallDetected() {
   lox.rangingTest(&meas, false);
   long distance = (meas.RangeStatus != 4) ? meas.RangeMilliMeter : -1;
   return (distance >= 0 && distance <= 80);
+}
+
+// カメラ用シリアル通信関数
+
+void serialEvent() {
+  while (Serial.available()) {
+    char inChar = (char)Serial.read();
+    if (inChar == '\n') {
+      stringComplete = true;
+    } else {
+      inputString += inChar;
+    }
+  }
+}
+
+void processSerialData(String data) {
+  // カンマで3分割
+  int firstComma = data.indexOf(',');
+  int secondComma = data.indexOf(',', firstComma + 1);
+
+  if (firstComma < 0 || secondComma < 0) return;
+
+  String colorStr = data.substring(0, firstComma);
+  String areaStr  = data.substring(firstComma + 1, secondComma);
+  String angleStr = data.substring(secondComma + 1);
+
+  float angle = angleStr.toFloat();
+
+  // 色名から色番号に変換
+  if (colorStr == "Red") {
+    color = 1;
+  } else if (colorStr == "Yellow") {
+    color = 2;
+  } else if (colorStr == "Blue") {
+    color = 3;
+  } else {
+    color = 0;  // 未知の色
+  }
+
+  // もし15度以内なら何もしない
+  if (abs(angle) <= 15.0) {
+    while(1) {
+      stopAll();
+      // color は既にセット済み
+    }
+  }
+
+  // 15度より大きければ10度回転
+  int commandAngle = (angle > 0) ? 10 : -10;
+  rotateRobot(-commandAngle);  // 向きを反転
+
+  stopAll();
+  delay(5000);  // 一時停止して次の測定を待つ
 }
