@@ -21,10 +21,10 @@
 #define ENC_LEFT_B     32  // 左車輪 B 相
 
 // 車輪モータドライバ (AM2837)
-#define WHEEL_MD_RIGHT_A 5  // 右車輪入力 A (PWM)
-#define WHEEL_MD_RIGHT_B 4  // 右車輪入力 B (PWM)
-#define WHEEL_MD_LEFT_A  7  // 左車輪入力 A (PWM)
-#define WHEEL_MD_LEFT_B  6  // 左車輪入力 B (PWM)
+#define WHEEL_MD_RIGHT_FORWORD 4  // 右車輪入力 B (PWM)
+#define WHEEL_MD_RIGHT_BACK    5  // 右車輪入力 A (PWM)
+#define WHEEL_MD_LEFT_FORWORD  7  // 左車輪入力 A (PWM)
+#define WHEEL_MD_LEFT_BACK     6  // 左車輪入力 B (PWM)
 
 // 吸引モータドライバ (AM2837)
 #define SUCTION_MD_A   3  // 吸引用入力 A (PWM)
@@ -42,7 +42,7 @@
 #define STATE_FORWARD        2
 #define STATE_TO_BALL_AREA   3
 #define STATE_BALL_DETECT    4
-#define STATE BALL_COLLECT   5
+#define STATE_BALL_COLLECT   5
 #define STATE_TO_RED_GOAL    6
 #define STATE_TO_YELLOW_GOAL 7
 #define STATE_TO_BLUE_GOAL   8
@@ -63,6 +63,10 @@
 #define KI 0.02
 
 #define START_TO_RINE 1000
+// ラインからゴールまで直進を待機する時間
+#define TO_RED_GOAL 1000
+#define TO_YELLOW_GOAL 1000
+#define TO_BLUE_GOAL 2000
 
 Encoder encoderRight(ENC_RIGHT_A, ENC_RIGHT_B);
 Encoder encoderLeft(ENC_LEFT_A, ENC_LEFT_B);
@@ -72,7 +76,18 @@ Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 int state = STATE_WAIT; // 現在の状態
 bool psd = false;       // 測距センサ検出フラグ
 int color = 0;          // ボール色: 0=なし,1=赤,2=黄,3=青
-int linePos = 0;        // ライン位置番号: 1～8
+// 0617_松本変更
+// 扱い考えると1からスタートしたほうがいい
+int linePos = 1;        // ライン位置番号: 1～4
+
+/* 0616_白井追加 */
+/* ライントレース用PIDなど */
+#define Kp = 10.0; //ここ変える!
+#define Ki = 0.01; //ここ変える!
+#define Kd = 5.0; //ここ変える!
+float I_diff = 0;
+float past_diff = 0;
+#define I_max 100 //ここ変えれる
 
 void setup() {
   Serial.begin(115200);
@@ -103,7 +118,16 @@ void setup() {
 }
 
 void loop() {
+  //0616_白井追加_センサの値読み処理_どこに追加すべきかよくわかっていない
+  //センサ値はbit下げて分解能下げが良さげな感じの雰囲気がした気がする
+  int sensor_value_L = analogRead(LINE_CH4_PIN) >> 2;  // 左センサ値
+  int sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2;  // 右センサ値 実際の環境で試さないと何とも言えぬ
 
+  int line_l = digitalRead(LINE_CH1_PIN);
+  int line_r = digitalRead(LINE_CH8_PIN);
+  
+  int center = (sensor_value_L + sensor_value_R) / 2;
+  float diff = (sensor_value_R - center) - (sensor_value_L - center);
   switch (state) {
     case STATE_WAIT:
       stopAll();
@@ -113,12 +137,19 @@ void loop() {
 
     case STATE_FORWARD:
       driveStraight();
-      delay();
-      state = STATE_TO_BALL_AREA;
+      if (line_L == 0 && line_R == 0)
+        state = STATE_TO_BALL_AREA;
       break;
 
     case STATE_TO_BALL_AREA:
     // 白井ここ書いて
+    //0616_白井追加
+    pidControl(sensor_value_L, sensor_value_R);
+      if (line_L == 0 && line_R == 0)
+        linePos += 1;
+      if (line_Pos == 3)
+        state = STATE_BALL_COLLECT;
+      break;  
 
     case STATE_BALL_DETECT:
       if (stringComplete) {
@@ -184,12 +215,33 @@ void loop() {
     
     case STATE_TO_RED_GOAL:
     // 白井ここ書いて 
+    //0616_白井追加_反時計回りを向いている物としている
+      pidControl(sensor_value_L, sensor_value_R);
+      if (line_L == 0 && line_R == 0)
+         linePos -= 1;
+      if (line_Pos == 1)
+        state = STATE_DROP_RED;
+      break; 
 
     case STATE_TO_YELLOW_GOAL:
-    // 白井ここ書いて 
+    // 白井ここ書いて
+    //0616_白井追加_反時計回りを向いている物としている
+      pidControl(sensor_value_L, sensor_value_R);
+      if (line_L == 0 && line_R == 0)
+         linePos -= 1;
+      if (line_Pos == 2)
+        state = STATE_DROP_YELLOW;
+      break;  
 
     case STATE_TO_BLUE_GOAL:
     // 白井ここ書いて 
+    //0616_白井追加_反時計回りを向いている物としている
+      pidControl(sensor_value_L, sensor_value_R);
+      if (line_L == 0 && line_R == 0)
+         linePos -= 1;
+      if (line_Pos == 3)
+        state = STATE_DROP_BLUE;
+      break;  
     
     case STATE_DROP_RED:
       // 赤色ゴールのモーション
@@ -222,6 +274,9 @@ void loop() {
       stopAll();
       delay(1000);
 
+      stete = STATE_TO_BALL_AREA;
+      break;
+
     case STATE_DROP_YELLOW:
       // 黄色ゴールのモーション
       stopAll();
@@ -253,6 +308,9 @@ void loop() {
       stopAll();
       delay(1000);
 
+      stete = STATE_TO_BALL_AREA;
+      break;
+
     case STATE_DROP_BLUE:
       // 青色ゴールのモーション
       stopAll();
@@ -277,6 +335,9 @@ void loop() {
       stopAll();
       delay(1000);
 
+      stete = STATE_TO_BALL_AREA;
+      break;
+
     case STATE_FUNCTION_TEST:
       break;
 
@@ -285,6 +346,27 @@ void loop() {
       break;
   }
   delay(50);
+}
+
+//0616_白井追加
+void pidControl(int sensor_value_L, int sensor_value_R) {
+  int center = (sensor_value_L + sensor_value_R) / 2;
+  float diff = (sensor_value_R - center) - (sensor_value_L - center);
+
+  float rotate = Kp * diff + Ki * I_diff + Kd * (diff - past_diff);
+
+  past_diff = diff;
+  I_diff += diff;
+  I_diff = constrain(I_diff, -I_max, I_max);
+
+  // 左右の速度調整
+  speed_l = constrain(base_speed + rotate, 0, 50); //ここ変える!
+  speed_r = constrain(base_speed - rotate, 0, 100) * 1.5; //ここ変える!
+}
+
+void driveStraight() {
+  digitalWrite(WHEEL_MD_RIGHT_FORWORD, HIGH);
+  digitalWrite(WHEEL_MD_LEFT_FORWORD, HIGH);
 }
 
 void driveStraight() {
@@ -403,7 +485,8 @@ void processSerialData(String data) {
   if (abs(angle) <= 15.0) {
     while(1) {
       stopAll();
-      // color は既にセット済み
+      state = STATE_BALL_COLLECT;
+      break;
     }
   }
 
