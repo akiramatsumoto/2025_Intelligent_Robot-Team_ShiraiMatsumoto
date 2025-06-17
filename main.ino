@@ -86,12 +86,18 @@ bool stringComplete = false;
 
 /* 0616_白井追加 */
 /* ライントレース用PIDなど */
-#define Kp = 10.0 //ここ変える!
-#define Ki = 0.01 //ここ変える!
-#define Kd = 5.0  //ここ変える!
+#define Kp 10.0 //ここ変える!
+#define Ki 0.01 //ここ変える!
+#define Kd 5.0  //ここ変える!
 float I_diff = 0;
 float past_diff = 0;
 #define I_max 100 //ここ変えれる
+
+/* 0617_松本追加 */  
+// その他
+float base_speed = 50;  // 基本速度（0〜255）ここ変える!
+float speed_l = 0;
+float speed_r = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -132,6 +138,7 @@ void loop() {
   
   int center = (sensor_value_L + sensor_value_R) / 2;
   float diff = (sensor_value_R - center) - (sensor_value_L - center);
+
   switch (state) {
     case STATE_WAIT:
       stopAll();
@@ -366,6 +373,35 @@ void pidControl(int sensor_value_L, int sensor_value_R) {
   // 左右の速度調整
   speed_l = constrain(base_speed + rotate, 0, 50); //ここ変える!
   speed_r = constrain(base_speed - rotate, 0, 100) * 1.5; //ここ変える!
+
+  /* 0617_松本追加 */  
+  // モーター制御
+  motorControl(speed_l, speed_r);
+}
+
+/* 0617_松本追加 */
+void motorControl(float left, float right) {
+  // 安全な範囲に制限（0〜255）
+  //left = constrain(left, -100, 100);
+  //right = constrain(right, -100, 100);
+
+  // 左モーター制御
+  if (left >= 0) {
+    analogWrite(WHEEL_MD_RIGHT_BACK, left);
+    analogWrite(WHEEL_MD_RIGHT_FORWORD, 0);
+  } else {
+    analogWrite(WHEEL_MD_LEFT_FORWORD, 0);
+    analogWrite(WHEEL_MD_LEFT_BACK, -left);
+  }
+
+  // 右モーター制御
+  if (right >= 0) {
+    analogWrite(WHEEL_MD_RIGHT_BACK, 0);
+    analogWrite(WHEEL_MD_RIGHT_FORWORD, right);
+  } else {
+    analogWrite(WHEEL_MD_LEFT_FORWORD, -right);
+    analogWrite(WHEEL_MD_LEFT_BACK, 0);
+  }
 }
 
 void driveStraight() {
