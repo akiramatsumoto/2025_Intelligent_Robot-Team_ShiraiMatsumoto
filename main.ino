@@ -387,8 +387,8 @@ void motorControl(float left, float right) {
 
   // 左モーター制御
   if (left >= 0) {
-    analogWrite(WHEEL_MD_RIGHT_BACK, left);
-    analogWrite(WHEEL_MD_RIGHT_FORWORD, 0);
+    analogWrite(WHEEL_MD_LEFT_FORWORD, left);
+    analogWrite(WHEEL_MD_LEFT_BACK, 0);
   } else {
     analogWrite(WHEEL_MD_LEFT_FORWORD, 0);
     analogWrite(WHEEL_MD_LEFT_BACK, -left);
@@ -399,8 +399,8 @@ void motorControl(float left, float right) {
     analogWrite(WHEEL_MD_RIGHT_BACK, 0);
     analogWrite(WHEEL_MD_RIGHT_FORWORD, right);
   } else {
-    analogWrite(WHEEL_MD_LEFT_FORWORD, -right);
-    analogWrite(WHEEL_MD_LEFT_BACK, 0);
+    analogWrite(WHEEL_MD_RIGHT_BACK, -right);
+    analogWrite(WHEEL_MD_RIGHT_FORWORD, 0);
   }
 }
 
