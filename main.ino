@@ -80,11 +80,15 @@ int color = 0;          // ボール色: 0=なし,1=赤,2=黄,3=青
 // 扱い考えると1からスタートしたほうがいい
 int linePos = 1;        // ライン位置番号: 1～4
 
+// シリアル通信用
+String inputString = "";
+bool stringComplete = false;
+
 /* 0616_白井追加 */
 /* ライントレース用PIDなど */
-#define Kp = 10.0; //ここ変える!
-#define Ki = 0.01; //ここ変える!
-#define Kd = 5.0; //ここ変える!
+#define Kp = 10.0 //ここ変える!
+#define Ki = 0.01 //ここ変える!
+#define Kd = 5.0  //ここ変える!
 float I_diff = 0;
 float past_diff = 0;
 #define I_max 100 //ここ変えれる
@@ -123,8 +127,8 @@ void loop() {
   int sensor_value_L = analogRead(LINE_CH4_PIN) >> 2;  // 左センサ値
   int sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2;  // 右センサ値 実際の環境で試さないと何とも言えぬ
 
-  int line_l = digitalRead(LINE_CH1_PIN);
-  int line_r = digitalRead(LINE_CH8_PIN);
+  int line_L = digitalRead(LINE_CH1_PIN);
+  int line_R = digitalRead(LINE_CH8_PIN);
   
   int center = (sensor_value_L + sensor_value_R) / 2;
   float diff = (sensor_value_R - center) - (sensor_value_L - center);
@@ -147,7 +151,7 @@ void loop() {
     pidControl(sensor_value_L, sensor_value_R);
       if (line_L == 0 && line_R == 0)
         linePos += 1;
-      if (line_Pos == 3)
+      if (linePos == 3)
         state = STATE_BALL_COLLECT;
       break;  
 
@@ -219,7 +223,7 @@ void loop() {
       pidControl(sensor_value_L, sensor_value_R);
       if (line_L == 0 && line_R == 0)
          linePos -= 1;
-      if (line_Pos == 1)
+      if (linePos == 1)
         state = STATE_DROP_RED;
       break; 
 
@@ -229,7 +233,7 @@ void loop() {
       pidControl(sensor_value_L, sensor_value_R);
       if (line_L == 0 && line_R == 0)
          linePos -= 1;
-      if (line_Pos == 2)
+      if (linePos == 2)
         state = STATE_DROP_YELLOW;
       break;  
 
@@ -239,7 +243,7 @@ void loop() {
       pidControl(sensor_value_L, sensor_value_R);
       if (line_L == 0 && line_R == 0)
          linePos -= 1;
-      if (line_Pos == 3)
+      if (linePos == 3)
         state = STATE_DROP_BLUE;
       break;  
     
@@ -274,7 +278,7 @@ void loop() {
       stopAll();
       delay(1000);
 
-      stete = STATE_TO_BALL_AREA;
+      state = STATE_TO_BALL_AREA;
       break;
 
     case STATE_DROP_YELLOW:
@@ -308,7 +312,7 @@ void loop() {
       stopAll();
       delay(1000);
 
-      stete = STATE_TO_BALL_AREA;
+      state = STATE_TO_BALL_AREA;
       break;
 
     case STATE_DROP_BLUE:
@@ -335,7 +339,7 @@ void loop() {
       stopAll();
       delay(1000);
 
-      stete = STATE_TO_BALL_AREA;
+      state = STATE_TO_BALL_AREA;
       break;
 
     case STATE_FUNCTION_TEST:
@@ -362,11 +366,6 @@ void pidControl(int sensor_value_L, int sensor_value_R) {
   // 左右の速度調整
   speed_l = constrain(base_speed + rotate, 0, 50); //ここ変える!
   speed_r = constrain(base_speed - rotate, 0, 100) * 1.5; //ここ変える!
-}
-
-void driveStraight() {
-  digitalWrite(WHEEL_MD_RIGHT_FORWORD, HIGH);
-  digitalWrite(WHEEL_MD_LEFT_FORWORD, HIGH);
 }
 
 void driveStraight() {
@@ -483,16 +482,14 @@ void processSerialData(String data) {
 
   // もし15度以内なら何もしない
   if (abs(angle) <= 15.0) {
-    while(1) {
-      stopAll();
-      state = STATE_BALL_COLLECT;
-      break;
-    }
+    stopAll();
+    state = STATE_BALL_COLLECT;
+    return;
   }
 
   // 15度より大きければ10度回転
   int commandAngle = (angle > 0) ? 10 : -10;
-  rotateRobot(-commandAngle);  // 向きを反転
+  rotateRobot(-commandAngle, 1);  // 向きを反転
 
   stopAll();
   delay(5000);  // 一時停止して次の測定を待つ
