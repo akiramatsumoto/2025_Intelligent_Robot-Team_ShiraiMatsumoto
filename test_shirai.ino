@@ -21,10 +21,10 @@
 #define ENC_LEFT_B     32  // 左車輪 B 相
 
 // 車輪モータドライバ (AM2837)
-#define WHEEL_MD_RIGHT_A 5  // 右車輪入力 A (PWM)
-#define WHEEL_MD_RIGHT_B 4  // 右車輪入力 B (PWM)
-#define WHEEL_MD_LEFT_A  7  // 左車輪入力 A (PWM)
-#define WHEEL_MD_LEFT_B  6  // 左車輪入力 B (PWM)
+#define WHEEL_MD_RIGHT_FORWORD 4  // 右車輪入力 B (PWM)
+#define WHEEL_MD_RIGHT_BACK    5  // 右車輪入力 A (PWM)
+#define WHEEL_MD_LEFT_FORWORD  7  // 左車輪入力 A (PWM)
+#define WHEEL_MD_LEFT_BACK     6  // 左車輪入力 B (PWM)
 
 // 吸引モータドライバ (AM2837)
 #define SUCTION_MD_A   3  // 吸引用入力 A (PWM)
@@ -42,7 +42,7 @@
 #define STATE_FORWARD        2
 #define STATE_TO_BALL_AREA   3
 #define STATE_BALL_DETECT    4
-#define STATE BALL_COLLECT   5
+#define STATE_BALL_COLLECT   5
 #define STATE_TO_RED_GOAL    6
 #define STATE_TO_YELLOW_GOAL 7
 #define STATE_TO_BLUE_GOAL   8
@@ -63,6 +63,10 @@
 #define KI 0.02
 
 #define START_TO_RINE 1000
+// ラインからゴールまで直進を待機する時間
+#define TO_RED_GOAL 1000
+#define TO_YELLOW_GOAL 1000
+#define TO_BLUE_GOAL 2000
 
 Encoder encoderRight(ENC_RIGHT_A, ENC_RIGHT_B);
 Encoder encoderLeft(ENC_LEFT_A, ENC_LEFT_B);
@@ -72,16 +76,30 @@ Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 int state = STATE_WAIT; // 現在の状態
 bool psd = false;       // 測距センサ検出フラグ
 int color = 0;          // ボール色: 0=なし,1=赤,2=黄,3=青
-int linePos = 0;        // ライン位置番号: 1～4
+// 0617_松本変更
+// 扱い考えると1からスタートしたほうがいい
+int linePos = 1;        // ライン位置番号: 1～4
+
+// シリアル通信用
+String inputString = "";
+bool stringComplete = false;
 
 /* 0616_白井追加 */
 /* ライントレース用PIDなど */
-#define Kp = 10.0; //ここ変える!
-#define Ki = 0.01; //ここ変える!
-#define Kd = 5.0; //ここ変える!
+#define Kp 10.0 //ここ変える!
+#define Ki 0.01 //ここ変える!
+#define Kd 5.0  //ここ変える!
 float I_diff = 0;
 float past_diff = 0;
 #define I_max 100 //ここ変えれる
+
+bool side_line = true;
+
+/* 0617_松本追加 */  
+// その他
+float base_speed = 50;  // 基本速度（0〜255）ここ変える!
+float speed_l = 0;
+float speed_r = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -117,23 +135,25 @@ void loop() {
   int sensor_value_L = analogRead(LINE_CH4_PIN) >> 2;  // 左センサ値
   int sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2;  // 右センサ値 実際の環境で試さないと何とも言えぬ
 
-  int line_l = digitalRead(LINE_CH1_PIN);
-  int line_r = digitalRead(LINE_CH8_PIN);
+  int line_L = digitalRead(LINE_CH2_PIN);
+  int line_R = digitalRead(LINE_CH7_PIN);
   
   int center = (sensor_value_L + sensor_value_R) / 2;
   float diff = (sensor_value_R - center) - (sensor_value_L - center);
 
+  if(side_line == false && line_L == 1 && line_R == 1){
+    side_line = true;
+  }
 
   switch (state) {
     case STATE_WAIT:
       stopAll();
-      delay(15000);
+      delay(5000);
       state = STATE_FORWARD;
       break;
 
     case STATE_FORWARD:
       driveStraight();
-      delay();
       if (line_L == 0 && line_R == 0)
         state = STATE_TO_BALL_AREA;
       break;
@@ -142,14 +162,20 @@ void loop() {
     // 白井ここ書いて
     //0616_白井追加
     pidControl(sensor_value_L, sensor_value_R);
-    if (line_L == 0 && line_R == 0)
-      linePos += 1;
-    if (line_Pos) == 3)
-      state = STATE_BALL_COLLECT;
-    break;  
+      if (side_line == true && line_L == 0 && line_R == 0){
+        linePos += 1;
+        side_line = false;
+      }
+      if (linePos == 3)
+        state = STATE_BALL_COLLECT;
+      break;  
 
     case STATE_BALL_DETECT:
-    // ここで色の決定までする
+      if (stringComplete) {
+        processSerialData(inputString);
+        inputString = "";
+        stringComplete = false;
+      }
 
     case STATE_BALL_COLLECT:
       encoderRight.write(0);
@@ -161,7 +187,7 @@ void loop() {
         delay(10);
       }
       stopAll();
-
+//
       // 走行距離を記録
       long distanceRight = abs(encoderRight.read());
       long distanceLeft  = abs(encoderLeft.read());
@@ -191,24 +217,42 @@ void loop() {
         }
         delay(10);
       }
+      if (color == 1) {
+        state = STATE_TO_RED_GOAL;
+        break;
+      } else if (color == 2) {
+        state = STATE_TO_YELLOW_GOAL;
+        break;
+      } else if (color == 3) {
+        state = STATE_TO_BLUE_GOAL;
+        break;
+      } else {
+        state = STATE_TO_RED_GOAL;  // 未知の色
+        break;
+      }
+      
     
     case STATE_TO_RED_GOAL:
     // 白井ここ書いて 
     //0616_白井追加_反時計回りを向いている物としている
       pidControl(sensor_value_L, sensor_value_R);
-      if (line_L == 0 && line_R == 0)
-         linePos -= 1;
-      if (line_Pos) == 1)
+      if (side_line == true && line_L == 0 && line_R == 0){
+        linePos -= 1;
+        side_line = false;
+      }
+      if (linePos == 1)
         state = STATE_DROP_RED;
-      break;  
+      break; 
 
     case STATE_TO_YELLOW_GOAL:
-    // 白井ここ書いて 
+    // 白井ここ書いて
     //0616_白井追加_反時計回りを向いている物としている
       pidControl(sensor_value_L, sensor_value_R);
-      if (line_L == 0 && line_R == 0)
-         linePos -= 1;
-      if (line_Pos) == 2)
+      if (side_line == true && line_L == 0 && line_R == 0){
+        linePos -= 1;
+        side_line = false;
+      }
+      if (linePos == 2)
         state = STATE_DROP_YELLOW;
       break;  
 
@@ -216,12 +260,14 @@ void loop() {
     // 白井ここ書いて 
     //0616_白井追加_反時計回りを向いている物としている
       pidControl(sensor_value_L, sensor_value_R);
-      if (line_L == 0 && line_R == 0)
-         linePos -= 1;
-      if (line_Pos) == 3)
+      if (side_line == true && line_L == 0 && line_R == 0){
+        linePos -= 1;
+        side_line = false;
+      }
+      if (linePos == 3)
         state = STATE_DROP_BLUE;
       break;  
-   
+    
     case STATE_DROP_RED:
       // 赤色ゴールのモーション
       stopAll();
@@ -252,6 +298,9 @@ void loop() {
 
       stopAll();
       delay(1000);
+
+      state = STATE_TO_BALL_AREA;
+      break;
 
     case STATE_DROP_YELLOW:
       // 黄色ゴールのモーション
@@ -284,6 +333,9 @@ void loop() {
       stopAll();
       delay(1000);
 
+      state = STATE_TO_BALL_AREA;
+      break;
+
     case STATE_DROP_BLUE:
       // 青色ゴールのモーション
       stopAll();
@@ -308,6 +360,9 @@ void loop() {
       stopAll();
       delay(1000);
 
+      state = STATE_TO_BALL_AREA;
+      break;
+
     case STATE_FUNCTION_TEST:
       break;
 
@@ -315,6 +370,17 @@ void loop() {
       state = STATE_WAIT;
       break;
   }
+  Serial.print("STATE: ");
+  Serial.print(state);
+  Serial.print("  linePos: ");
+  Serial.print(linePos);
+  Serial.print("  side_line: ");
+  Serial.print(side_line ? "true" : "false");
+  Serial.print("  line_R: ");
+  Serial.print(line_R);
+  Serial.print("  line_L: ");
+  Serial.println(line_L);
+
   delay(50);
 }
 
@@ -332,6 +398,35 @@ void pidControl(int sensor_value_L, int sensor_value_R) {
   // 左右の速度調整
   speed_l = constrain(base_speed + rotate, 0, 50); //ここ変える!
   speed_r = constrain(base_speed - rotate, 0, 100) * 1.5; //ここ変える!
+
+  /* 0617_松本追加 */  
+  // モーター制御
+  motorControl(speed_l, speed_r);
+}
+
+/* 0617_松本追加 */
+void motorControl(float left, float right) {
+  // 安全な範囲に制限（0〜255）
+  //left = constrain(left, -100, 100);
+  //right = constrain(right, -100, 100);
+
+  // 左モーター制御
+  if (left >= 0) {
+    analogWrite(WHEEL_MD_LEFT_FORWORD, left);
+    analogWrite(WHEEL_MD_LEFT_BACK, 0);
+  } else {
+    analogWrite(WHEEL_MD_LEFT_FORWORD, 0);
+    analogWrite(WHEEL_MD_LEFT_BACK, -left);
+  }
+
+  // 右モーター制御
+  if (right >= 0) {
+    analogWrite(WHEEL_MD_RIGHT_BACK, 0);
+    analogWrite(WHEEL_MD_RIGHT_FORWORD, right);
+  } else {
+    analogWrite(WHEEL_MD_RIGHT_BACK, -right);
+    analogWrite(WHEEL_MD_RIGHT_FORWORD, 0);
+  }
 }
 
 void driveStraight() {
@@ -407,4 +502,56 @@ bool isBallDetected() {
   lox.rangingTest(&meas, false);
   long distance = (meas.RangeStatus != 4) ? meas.RangeMilliMeter : -1;
   return (distance >= 0 && distance <= 80);
+}
+
+// カメラ用シリアル通信関数
+
+void serialEvent() {
+  while (Serial.available()) {
+    char inChar = (char)Serial.read();
+    if (inChar == '\n') {
+      stringComplete = true;
+    } else {
+      inputString += inChar;
+    }
+  }
+}
+
+void processSerialData(String data) {
+  // カンマで3分割
+  int firstComma = data.indexOf(',');
+  int secondComma = data.indexOf(',', firstComma + 1);
+
+  if (firstComma < 0 || secondComma < 0) return;
+
+  String colorStr = data.substring(0, firstComma);
+  String areaStr  = data.substring(firstComma + 1, secondComma);
+  String angleStr = data.substring(secondComma + 1);
+
+  float angle = angleStr.toFloat();
+
+  // 色名から色番号に変換
+  if (colorStr == "Red") {
+    color = 1;
+  } else if (colorStr == "Yellow") {
+    color = 2;
+  } else if (colorStr == "Blue") {
+    color = 3;
+  } else {
+    color = 0;  // 未知の色
+  }
+
+  // もし15度以内なら何もしない
+  if (abs(angle) <= 15.0) {
+    stopAll();
+    state = STATE_BALL_COLLECT;
+    return;
+  }
+
+  // 15度より大きければ10度回転
+  int commandAngle = (angle > 0) ? 10 : -10;
+  rotateRobot(-commandAngle, 1);  // 向きを反転
+
+  stopAll();
+  delay(5000);  // 一時停止して次の測定を待つ
 }
