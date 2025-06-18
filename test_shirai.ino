@@ -78,7 +78,7 @@ bool psd = false;       // 測距センサ検出フラグ
 int color = 0;          // ボール色: 0=なし,1=赤,2=黄,3=青
 // 0617_松本変更
 // 扱い考えると1からスタートしたほうがいい
-int linePos = 1;        // ライン位置番号: 1～4
+int linePos = 0;        // ライン位置番号: 1～4
 
 // シリアル通信用
 String inputString = "";
@@ -124,7 +124,6 @@ void setup() {
   Wire.begin();
   if (!lox.begin()) {
     Serial.println("VL53L0X 初期化失敗");
-    while (1);
   }
   Serial.println("VL53L0X 初期化完了");
 }
@@ -141,7 +140,7 @@ void loop() {
   int center = (sensor_value_L + sensor_value_R) / 2;
   float diff = (sensor_value_R - center) - (sensor_value_L - center);
 
-  if(side_line == false && line_L == 1 && line_R == 1){
+  if(side_line == false && line_L == 0 && line_R == 0){
     side_line = true;
   }
 
@@ -154,7 +153,7 @@ void loop() {
 
     case STATE_FORWARD:
       driveStraight();
-      if (line_L == 0 && line_R == 0)
+      if (line_L == 1 && line_R == 1)
         state = STATE_TO_BALL_AREA;
       break;
 
@@ -162,7 +161,7 @@ void loop() {
     // 白井ここ書いて
     //0616_白井追加
     pidControl(sensor_value_L, sensor_value_R);
-      if (side_line == true && line_L == 0 && line_R == 0){
+      if (side_line == true && line_L == 1 && line_R == 1){
         linePos += 1;
         side_line = false;
       }
@@ -236,7 +235,7 @@ void loop() {
     // 白井ここ書いて 
     //0616_白井追加_反時計回りを向いている物としている
       pidControl(sensor_value_L, sensor_value_R);
-      if (side_line == true && line_L == 0 && line_R == 0){
+      if (side_line == true && line_L == 1 && line_R == 1){
         linePos -= 1;
         side_line = false;
       }
@@ -248,7 +247,7 @@ void loop() {
     // 白井ここ書いて
     //0616_白井追加_反時計回りを向いている物としている
       pidControl(sensor_value_L, sensor_value_R);
-      if (side_line == true && line_L == 0 && line_R == 0){
+      if (side_line == true && line_L == 1 && line_R == 1){
         linePos -= 1;
         side_line = false;
       }
@@ -260,7 +259,7 @@ void loop() {
     // 白井ここ書いて 
     //0616_白井追加_反時計回りを向いている物としている
       pidControl(sensor_value_L, sensor_value_R);
-      if (side_line == true && line_L == 0 && line_R == 0){
+      if (side_line == true && line_L == 1 && line_R == 1){
         linePos -= 1;
         side_line = false;
       }
