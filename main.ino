@@ -79,7 +79,7 @@ const float tolerance_angle = 15;
 // STATE_BALL_DETECTがスキップされないように予めtolerance_angleに1を足す
 float angle = tolerance_angle + 1.0;
 
-int state = STATE_WAIT; // 現在の状態
+int state = 4; // 現在の状態
 bool psd = false;       // 測距センサ検出フラグ
 int color = 0;          // ボール色: 0=なし,1=赤,2=黄,3=青
 // 0617_松本変更
@@ -135,6 +135,7 @@ void setup() {
 }
 
 void loop() {
+  Serial.print(state);
   //0616_白井追加_センサの値読み処理_どこに追加すべきかよくわかっていない
   //センサ値はbit下げて分解能下げが良さげな感じの雰囲気がした気がする
   int sensor_value_L = analogRead(LINE_CH4_PIN) >> 2;  // 左センサ値
@@ -176,7 +177,7 @@ void loop() {
       break;  
 
     case STATE_BALL_DETECT:
-      while (abs(angle) <= tolerance_angle) {
+      while (abs(angle) > tolerance_angle) {
         if (stringComplete) {
         processSerialData(inputString);
         inputString = "";
