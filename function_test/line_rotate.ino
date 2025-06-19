@@ -154,14 +154,18 @@ void loop() {
   switch (state) {
     case STATE_WAIT:
       stopAll();
-      while(1){
+      while(sensor_value_R < 100){
+        sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
         Serial.println(sensor_value_R);
+        motorControl(255, -255);
+        delay(20);
+        stopAll();
+        delay(1000);
       }
-      Serial.println(sensor_value_R);
       //while(sensor_value_R > 300) {
       //  motorControl(PWM_LEFT_MAX, -PWM_RIGHT_MAX);
-      //}
-      motorControl(PWM_LEFT_MAX, -PWM_RIGHT_MAX);
+      //}s
+      stopAll();
       delay(50000);
       state = STATE_FORWARD;
       break;
