@@ -524,7 +524,7 @@ void processSerialData(String data) {
   String areaStr  = data.substring(firstComma + 1, secondComma);
   String angleStr = data.substring(secondComma + 1);
 
-  float angle = angleStr.toFloat();
+  angle = angleStr.toFloat();
 
   // 色名から色番号に変換
   if (colorStr == "Red") {
