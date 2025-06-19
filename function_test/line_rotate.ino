@@ -79,7 +79,7 @@ const float tolerance_angle = 15;
 // STATE_BALL_DETECTがスキップされないように予めtolerance_angleに1を足す
 float angle = tolerance_angle + 1.0;
 
-int state = 4; // 現在の状態
+int state = 1; // 現在の状態
 bool psd = false;       // 測距センサ検出フラグ
 int color = 0;          // ボール色: 0=なし,1=赤,2=黄,3=青
 // 0617_松本変更
@@ -100,9 +100,6 @@ float past_diff = 0;
 #define I_max 100 //ここ変えれる
 
 bool side_line = true;
-
-// 回転してライントレースの線で止まる用
-int rotate_line = 0;
 
 /* 0617_松本追加 */  
 // その他
@@ -138,7 +135,7 @@ void setup() {
 }
 
 void loop() {
-  Serial.print(state);
+  Serial.println(state);
   //0616_白井追加_センサの値読み処理_どこに追加すべきかよくわかっていない
   //センサ値はbit下げて分解能下げが良さげな感じの雰囲気がした気がする
   int sensor_value_L = analogRead(LINE_CH4_PIN) >> 2;  // 左センサ値
@@ -157,7 +154,15 @@ void loop() {
   switch (state) {
     case STATE_WAIT:
       stopAll();
-      delay(5000);
+      while(1){
+        Serial.println(sensor_value_R);
+      }
+      Serial.println(sensor_value_R);
+      //while(sensor_value_R > 300) {
+      //  motorControl(PWM_LEFT_MAX, -PWM_RIGHT_MAX);
+      //}
+      motorControl(PWM_LEFT_MAX, -PWM_RIGHT_MAX);
+      delay(50000);
       state = STATE_FORWARD;
       break;
 
@@ -180,13 +185,22 @@ void loop() {
       break;  
 
     case STATE_BALL_DETECT:
-      while (abs(angle) > tolerance_angle) {
-        if (stringComplete) {
+      if (stringComplete) {
         processSerialData(inputString);
         inputString = "";
         stringComplete = false;
-        } 
+
+        if (abs(angle) <= tolerance_angle) {
+          stopAll();
+          state = STATE_BALL_COLLECT;
+        } else {
+          int commandAngle = (angle > 0) ? 5 : -5;
+          rotateRobot(-commandAngle, 1);  // カメラと逆向き補正
+          stopAll();
+          delay(1000);  // 次の画像処理待ち
+        }
       }
+      break;
 
     case STATE_BALL_COLLECT:
       encoderRight.write(0);
@@ -375,8 +389,6 @@ void loop() {
       break;
 
     case STATE_FUNCTION_TEST:
-      motorControl(PWM_LEFT_MAX, -PWM_RIGHT_MAX);
-      state = STATE_FUNCTION_TEST;
       break;
 
     default:
@@ -434,6 +446,11 @@ void motorControl(float left, float right) {
 void driveStraight() {
   digitalWrite(WHEEL_MD_RIGHT_FORWORD, HIGH);
   digitalWrite(WHEEL_MD_LEFT_FORWORD, HIGH);
+}
+
+void driveBack() {
+  digitalWrite(WHEEL_MD_RIGHT_BACK, HIGH);
+  digitalWrite(WHEEL_MD_LEFT_BACK, HIGH);
 }
 
 void rotateRobot(float degree, int repeat) {
@@ -543,17 +560,5 @@ void processSerialData(String data) {
     color = 0;  // 未知の色
   }
 
-  // もし15度以内なら何もしない
-  if (abs(angle) <= tolerance_angle) {
-    stopAll();
-    state = STATE_BALL_COLLECT;
-    return;
-  }
-
-  // 15度より大きければ10度回転
-  int commandAngle = (angle > 0) ? 10 : -10;
-  rotateRobot(-commandAngle, 1);  // 向きを反転
-
-  stopAll();
-  delay(5000);  // 一時停止して次の測定を待つ
+  // ✅ 状態遷移やrotateRobot()はFSM側で処理する
 }
