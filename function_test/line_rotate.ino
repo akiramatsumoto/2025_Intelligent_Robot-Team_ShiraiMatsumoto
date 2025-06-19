@@ -79,7 +79,7 @@ const float tolerance_angle = 15;
 // STATE_BALL_DETECTがスキップされないように予めtolerance_angleに1を足す
 float angle = tolerance_angle + 1.0;
 
-int state = 12; // 現在の状態
+int state = 4; // 現在の状態
 bool psd = false;       // 測距センサ検出フラグ
 int color = 0;          // ボール色: 0=なし,1=赤,2=黄,3=青
 // 0617_松本変更
@@ -101,6 +101,9 @@ float past_diff = 0;
 
 bool side_line = true;
 
+// 回転してライントレースの線で止まる用
+int rotate_line = 0;
+
 /* 0617_松本追加 */  
 // その他
 float base_speed = 50;  // 基本速度（0〜255）ここ変える!
@@ -108,7 +111,7 @@ float speed_l = 0;
 float speed_r = 0;
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   // ラインセンサ
   pinMode(LINE_CH1_PIN, INPUT);
   pinMode(LINE_CH2_PIN, INPUT);
@@ -154,7 +157,7 @@ void loop() {
   switch (state) {
     case STATE_WAIT:
       stopAll();
-      delay(50000);
+      delay(5000);
       state = STATE_FORWARD;
       break;
 
@@ -177,22 +180,13 @@ void loop() {
       break;  
 
     case STATE_BALL_DETECT:
-      if (stringComplete) {
+      while (abs(angle) > tolerance_angle) {
+        if (stringComplete) {
         processSerialData(inputString);
         inputString = "";
         stringComplete = false;
-
-        if (abs(angle) <= tolerance_angle) {
-          stopAll();
-          state = STATE_BALL_COLLECT;
-        } else {
-          int commandAngle = (angle > 0) ? 5 : -5;
-          rotateRobot(-commandAngle, 1);  // カメラと逆向き補正
-          stopAll();
-          delay(1000);  // 次の画像処理待ち
-        }
+        } 
       }
-      break;
 
     case STATE_BALL_COLLECT:
       encoderRight.write(0);
@@ -381,9 +375,7 @@ void loop() {
       break;
 
     case STATE_FUNCTION_TEST:
-      driveStraight();
-      //motorControl(PWM_LEFT_MAX, PWM_RIGHT_MAX);
-      delay(1000);
+      motorControl(PWM_LEFT_MAX, -PWM_RIGHT_MAX);
       state = STATE_FUNCTION_TEST;
       break;
 
@@ -551,6 +543,17 @@ void processSerialData(String data) {
     color = 0;  // 未知の色
   }
 
-  // ✅ 状態遷移やrotateRobot()はFSM側で処理する
-}
+  // もし15度以内なら何もしない
+  if (abs(angle) <= tolerance_angle) {
+    stopAll();
+    state = STATE_BALL_COLLECT;
+    return;
+  }
 
+  // 15度より大きければ10度回転
+  int commandAngle = (angle > 0) ? 10 : -10;
+  rotateRobot(-commandAngle, 1);  // 向きを反転
+
+  stopAll();
+  delay(5000);  // 一時停止して次の測定を待つ
+}
