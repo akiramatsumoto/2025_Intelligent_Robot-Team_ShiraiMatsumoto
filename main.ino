@@ -73,12 +73,18 @@ Encoder encoderLeft(ENC_LEFT_A, ENC_LEFT_B);
 Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 
 /* グローバル変数 */
+
+// ボールとの許容角度
+const float tolerance_angle = 15;
+
 int state = STATE_WAIT; // 現在の状態
 bool psd = false;       // 測距センサ検出フラグ
 int color = 0;          // ボール色: 0=なし,1=赤,2=黄,3=青
 // 0617_松本変更
 // 扱い考えると1からスタートしたほうがいい
-int linePos = 1;        // ライン位置番号: 1～4
+int linePos = 0;        // ライン位置番号: 1～4
+// STATE_BALL_DETECTがスキップされないように予めtolerance_angleに1を足す
+float angle = tolerance_angle + 1.0;
 
 // シリアル通信用
 String inputString = "";
@@ -93,11 +99,17 @@ float I_diff = 0;
 float past_diff = 0;
 #define I_max 100 //ここ変えれる
 
+float angle = 20;
+
+bool side_line = true;
+
 /* 0617_松本追加 */  
 // その他
 float base_speed = 50;  // 基本速度（0〜255）ここ変える!
 float speed_l = 0;
 float speed_r = 0;
+
+
 
 void setup() {
   Serial.begin(115200);
@@ -122,241 +134,12 @@ void setup() {
   Wire.begin();
   if (!lox.begin()) {
     Serial.println("VL53L0X 初期化失敗");
-    while (1);
   }
   Serial.println("VL53L0X 初期化完了");
 }
 
 void loop() {
-  //0616_白井追加_センサの値読み処理_どこに追加すべきかよくわかっていない
-  //センサ値はbit下げて分解能下げが良さげな感じの雰囲気がした気がする
-  int sensor_value_L = analogRead(LINE_CH4_PIN) >> 2;  // 左センサ値
-  int sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2;  // 右センサ値 実際の環境で試さないと何とも言えぬ
-
-  int line_L = digitalRead(LINE_CH1_PIN);
-  int line_R = digitalRead(LINE_CH8_PIN);
-  
-  int center = (sensor_value_L + sensor_value_R) / 2;
-  float diff = (sensor_value_R - center) - (sensor_value_L - center);
-
-  switch (state) {
-    case STATE_WAIT:
-      stopAll();
-      delay(15000);
-      state = STATE_FORWARD;
-      break;
-
-    case STATE_FORWARD:
-      driveStraight();
-      if (line_L == 0 && line_R == 0)
-        state = STATE_TO_BALL_AREA;
-      break;
-
-    case STATE_TO_BALL_AREA:
-    // 白井ここ書いて
-    //0616_白井追加
-    pidControl(sensor_value_L, sensor_value_R);
-      if (line_L == 0 && line_R == 0)
-        linePos += 1;
-      if (linePos == 3)
-        state = STATE_BALL_COLLECT;
-      break;  
-
-    case STATE_BALL_DETECT:
-      if (stringComplete) {
-        processSerialData(inputString);
-        inputString = "";
-        stringComplete = false;
-      }
-
-    case STATE_BALL_COLLECT:
-      encoderRight.write(0);
-      encoderLeft.write(0);
-
-      // ボール検出まで直進
-      driveStraight();
-      while (!isBallDetected()) {
-        delay(10);
-      }
-      stopAll();
-//
-      // 走行距離を記録
-      long distanceRight = abs(encoderRight.read());
-      long distanceLeft  = abs(encoderLeft.read());
-      long avgDistance = (distanceRight + distanceLeft) / 2;
-      Serial.print("進んだ距離: "); Serial.println(avgDistance);
-
-      delay(1000);
-
-      rotateRobot(10, 18);
-      delay(1000);
-
-      stopAll();
-      delay(1000);
-
-      // 記録した距離だけ戻る
-      encoderRight.write(0);
-      encoderLeft.write(0);
-      driveStraight();
-      while (true) {
-        long posR = abs(encoderRight.read());
-        long posL = abs(encoderLeft.read());
-        long avgPos = (posR + posL) / 2;
-
-        if (avgPos >= avgDistance) {
-          stopAll();
-          break;
-        }
-        delay(10);
-      }
-      if (color == 1) {
-        state = STATE_TO_RED_GOAL;
-        break;
-      } else if (color == 2) {
-        state = STATE_TO_YELLOW_GOAL;
-        break;
-      } else if (color == 3) {
-        state = STATE_TO_BLUE_GOAL;
-        break;
-      } else {
-        state = STATE_TO_RED_GOAL;  // 未知の色
-        break;
-      }
-      
-    
-    case STATE_TO_RED_GOAL:
-    // 白井ここ書いて 
-    //0616_白井追加_反時計回りを向いている物としている
-      pidControl(sensor_value_L, sensor_value_R);
-      if (line_L == 0 && line_R == 0)
-         linePos -= 1;
-      if (linePos == 1)
-        state = STATE_DROP_RED;
-      break; 
-
-    case STATE_TO_YELLOW_GOAL:
-    // 白井ここ書いて
-    //0616_白井追加_反時計回りを向いている物としている
-      pidControl(sensor_value_L, sensor_value_R);
-      if (line_L == 0 && line_R == 0)
-         linePos -= 1;
-      if (linePos == 2)
-        state = STATE_DROP_YELLOW;
-      break;  
-
-    case STATE_TO_BLUE_GOAL:
-    // 白井ここ書いて 
-    //0616_白井追加_反時計回りを向いている物としている
-      pidControl(sensor_value_L, sensor_value_R);
-      if (line_L == 0 && line_R == 0)
-         linePos -= 1;
-      if (linePos == 3)
-        state = STATE_DROP_BLUE;
-      break;  
-    
-    case STATE_DROP_RED:
-      // 赤色ゴールのモーション
-      stopAll();
-      delay(1000);
-
-      rotateRobot(10, 9);
-
-      stopAll();
-      delay(1000);
-
-      driveStraight();
-      delay(TO_RED_GOAL);
-
-      stopAll();
-      delay(1000);
-
-      // サーボモータを下げる
-
-      rotateRobot(10, 18);
-
-      stopAll();
-      delay(1000);
-
-      driveStraight();
-      delay(TO_RED_GOAL);
-
-      rotateRobot(10, 9);
-
-      stopAll();
-      delay(1000);
-
-      state = STATE_TO_BALL_AREA;
-      break;
-
-    case STATE_DROP_YELLOW:
-      // 黄色ゴールのモーション
-      stopAll();
-      delay(1000);
-
-      rotateRobot(10, 9);
-
-      stopAll();
-      delay(1000);
-
-      driveStraight();
-      delay(TO_YELLOW_GOAL);
-
-      stopAll();
-      delay(1000);
-
-      // サーボモータを下げる
-
-      rotateRobot(10, 18);
-
-      stopAll();
-      delay(1000);
-
-      driveStraight();
-      delay(TO_YELLOW_GOAL);
-
-      rotateRobot(10, 9);
-
-      stopAll();
-      delay(1000);
-
-      state = STATE_TO_BALL_AREA;
-      break;
-
-    case STATE_DROP_BLUE:
-      // 青色ゴールのモーション
-      stopAll();
-      delay(1000);
-
-      driveStraight();
-      delay(TO_BLUE_GOAL);
-
-      stopAll();
-      delay(1000);
-
-      // サーボモータを下げる
-
-      rotateRobot(10, 18);
-
-      stopAll();
-      delay(1000);
-
-      driveStraight();
-      delay(TO_BLUE_GOAL);
-
-      stopAll();
-      delay(1000);
-
-      state = STATE_TO_BALL_AREA;
-      break;
-
-    case STATE_FUNCTION_TEST:
-      break;
-
-    default:
-      state = STATE_WAIT;
-      break;
-  }
-  delay(50);
+  processSerialData(inputString);
 }
 
 //0616_白井追加
@@ -493,17 +276,18 @@ void serialEvent() {
 }
 
 void processSerialData(String data) {
+
   // カンマで3分割
   int firstComma = data.indexOf(',');
   int secondComma = data.indexOf(',', firstComma + 1);
 
-  if (firstComma < 0 || secondComma < 0) return;
+  // if (firstComma < 0 || secondComma < 0) return;
 
   String colorStr = data.substring(0, firstComma);
   String areaStr  = data.substring(firstComma + 1, secondComma);
   String angleStr = data.substring(secondComma + 1);
 
-  float angle = angleStr.toFloat();
+  angle = angleStr.toFloat();
 
   // 色名から色番号に変換
   if (colorStr == "Red") {
@@ -517,7 +301,7 @@ void processSerialData(String data) {
   }
 
   // もし15度以内なら何もしない
-  if (abs(angle) <= 15.0) {
+  if (abs(angle) <= tolerance_angle) {
     stopAll();
     state = STATE_BALL_COLLECT;
     return;
@@ -527,6 +311,10 @@ void processSerialData(String data) {
   int commandAngle = (angle > 0) ? 10 : -10;
   rotateRobot(-commandAngle, 1);  // 向きを反転
 
+  Serial.println(angle);
+
   stopAll();
   delay(5000);  // 一時停止して次の測定を待つ
+
+  Serial.println("B");
 }
