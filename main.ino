@@ -79,7 +79,7 @@ const float tolerance_angle = 15;
 // STATE_BALL_DETECTがスキップされないように予めtolerance_angleに1を足す
 float angle = tolerance_angle + 1.0;
 
-int state = 12; // 現在の状態
+int state = 4; // 現在の状態
 bool psd = false;       // 測距センサ検出フラグ
 int color = 0;          // ボール色: 0=なし,1=赤,2=黄,3=青
 // 0617_松本変更
@@ -154,7 +154,7 @@ void loop() {
   switch (state) {
     case STATE_WAIT:
       stopAll();
-      delay(50000);
+      delay(5000);
       state = STATE_FORWARD;
       break;
 
@@ -176,23 +176,22 @@ void loop() {
         state = STATE_BALL_COLLECT;
       break;  
 
-    case STATE_BALL_DETECT:
-      if (stringComplete) {
-        processSerialData(inputString);
-        inputString = "";
-        stringComplete = false;
+  case STATE_BALL_DETECT:
+    if (stringComplete) {
+      processSerialData(inputString);
+      inputString = "";
+      stringComplete = false;
+    }
 
-        if (abs(angle) <= tolerance_angle) {
-          stopAll();
-          state = STATE_BALL_COLLECT;
-        } else {
-          int commandAngle = (angle > 0) ? 5 : -5;
-          rotateRobot(-commandAngle, 1);  // カメラと逆向き補正
-          stopAll();
-          delay(1000);  // 次の画像処理待ち
-        }
-      }
-      break;
+    if (abs(angle) <= tolerance_angle) {
+      stopAll();
+      delay(1000);
+      state = STATE_BALL_DETECT;
+    } else if (!stringComplete) {
+      // 次のシリアル入力を待つ
+      // rotateRobot() は processSerialData 内で呼び出されるためここでは何もしない
+    }
+    break;
 
     case STATE_BALL_COLLECT:
       encoderRight.write(0);
@@ -381,10 +380,6 @@ void loop() {
       break;
 
     case STATE_FUNCTION_TEST:
-      driveStraight();
-      //motorControl(PWM_LEFT_MAX, PWM_RIGHT_MAX);
-      delay(1000);
-      state = STATE_FUNCTION_TEST;
       break;
 
     default:
@@ -551,6 +546,17 @@ void processSerialData(String data) {
     color = 0;  // 未知の色
   }
 
-  // ✅ 状態遷移やrotateRobot()はFSM側で処理する
-}
+  // もし15度以内なら何もしない
+  if (abs(angle) <= tolerance_angle) {
+    stopAll();
+    state = STATE_BALL_COLLECT;
+    return;
+  }
 
+  // 15度より大きければ10度回転
+  int commandAngle = (angle > 0) ? 5 : -5;
+  rotateRobot(-commandAngle, 1);  // 向きを反転
+
+  stopAll();
+  delay(5000);  // 一時停止して次の測定を待つ
+}
