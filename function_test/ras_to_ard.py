@@ -5,23 +5,16 @@ import cv2
 import numpy as np
 import serial
 import time
+import sys
 
-# シリアル初期化
-SERIAL_PORT = '/dev/ttyACM0'   # 必要に応じて変更
+# === 設定 ===
+SERIAL_PORT = '/dev/ttyACM0'
 BAUD_RATE   = 9600
-ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-time.sleep(2)  # Arduino リセット待ち
+MAX_RETRIES = 5
+RETRY_DELAY = 2  # 秒
+HFOV = 60.0  # カメラの水平視野角
 
-# カメラ初期化
-cap = cv2.VideoCapture(0)
-if not cap.isOpened():
-    print("ERROR: カメラが開けませんでした")
-    exit(1)
-
-# カメラの水平視野角（度）
-HFOV = 60.0
-
-# 色ごとのHSV範囲（辞書で定義）
+# === 色ごとのHSV範囲 ===
 color_ranges = {
     "Red": [
         (np.array([0,   100, 100]), np.array([10,  255, 255])),
@@ -35,81 +28,96 @@ color_ranges = {
     ]
 }
 
-# 描画用の BGR カラー
-draw_colors = {
-    "Red":    (0,   0,   255),
-    "Blue":   (255, 0,   0),
-    "Yellow": (0,   255, 255)
-}
+# === シリアル初期化（再接続リトライ付き） ===
+def init_serial():
+    for i in range(MAX_RETRIES):
+        try:
+            ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+            time.sleep(2)
+            print(f"[INFO] Serial connected to {SERIAL_PORT}")
+            return ser
+        except serial.SerialException as e:
+            print(f"[WARN] Serial connect failed ({i+1}/{MAX_RETRIES}): {e}")
+            time.sleep(RETRY_DELAY)
+    print("[ERROR] Could not open serial port.")
+    return None
 
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        print("ERROR: フレーム取得失敗")
-        break
+# === シリアル再接続のラッパー ===
+def safe_serial_write(ser, msg):
+    try:
+        if ser and ser.is_open:
+            ser.write(msg.encode('utf-8'))
+        else:
+            raise serial.SerialException("Port not open")
+    except serial.SerialException as e:
+        print("[WARN] Serial write failed:", e)
+        print("[INFO] Attempting to reconnect...")
+        return init_serial()
+    return ser
 
-    height, width = frame.shape[:2]
-    center_x = width / 2
+# === メイン処理 ===
+def main():
+    ser = init_serial()
 
-    # 前処理
-    blurred = cv2.GaussianBlur(frame, (11, 11), 0)
-    hsv     = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
+    cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
+    if not cap.isOpened():
+        print("[ERROR] カメラが開けませんでした")
+        sys.exit(1)
 
-    # 最大検出情報
-    max_area_color = None
-    max_area_value = 0
-    max_angle      = 0.0
-
-    # 各色ごとにマスク→輪郭検出
-    for color_name, ranges in color_ranges.items():
-        # 空のマスクを作成
-        mask = np.zeros_like(cv2.inRange(hsv, (0,0,0), (0,0,0)))
-        for lower, upper in ranges:
-            mask |= cv2.inRange(hsv, lower, upper)
-
-        # 輪郭取得
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if not contours:
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("[WARN] フレーム取得失敗")
+            time.sleep(0.5)
             continue
 
-        # 面積最大の輪郭
-        cnt  = max(contours, key=cv2.contourArea)
-        area = cv2.contourArea(cnt)
-        if area < 500:
-            continue
+        height, width = frame.shape[:2]
+        center_x = width / 2
 
-        # 最小外接円で中心位置・角度計算
-        (x, y), radius = cv2.minEnclosingCircle(cnt)
-        dx    = x - center_x
-        angle = (dx / center_x) * (HFOV / 2)
+        blurred = cv2.GaussianBlur(frame, (11, 11), 0)
+        hsv     = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
-        # 最大面積更新
-        if area > max_area_value:
-            max_area_color = color_name
-            max_area_value = area
-            max_angle      = angle
+        max_area_color = None
+        max_area_value = 0
+        max_angle      = 0.0
 
-        # 画面にも描画（任意）
-        cv2.circle(frame, (int(x), int(y)), int(radius), draw_colors[color_name], 2)
-        cv2.putText(frame,
-                    f"{color_name}: {area:.0f}px², {angle:.1f}°",
-                    (int(x-radius), int(y-radius)-10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, draw_colors[color_name], 2)
+        for color_name, ranges in color_ranges.items():
+            mask = np.zeros_like(cv2.inRange(hsv, (0,0,0), (0,0,0)))
+            for lower, upper in ranges:
+                mask |= cv2.inRange(hsv, lower, upper)
 
-    # シリアル送信
-    if max_area_color:
-        # フォーマット: 色名,面積,角度\n
-        msg = f"{max_area_color},{int(max_area_value)},{max_angle:.2f}\n"
-        ser.write(msg.encode('utf-8'))
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if not contours:
+                continue
 
-    # ウィンドウ表示
-    cv2.imshow("Multi Color Ball Tracking", frame)
-    key = cv2.waitKey(1)
-    if key == 27:  # ESC キーで終了
-        break
+            cnt  = max(contours, key=cv2.contourArea)
+            area = cv2.contourArea(cnt)
+            if area < 500:
+                continue
 
-# 後処理
-cap.release()
-cv2.destroyAllWindows()
-ser.close()
+            (x, y), radius = cv2.minEnclosingCircle(cnt)
+            dx    = x - center_x
+            angle = (dx / center_x) * (HFOV / 2)
 
+            if area > max_area_value:
+                max_area_color = color_name
+                max_area_value = area
+                max_angle      = angle
+
+        if max_area_color:
+            msg = f"{max_area_color},{int(max_area_value)},{max_angle:.2f}\n"
+            print(f"[SEND] {msg.strip()}")
+            ser = safe_serial_write(ser, msg)
+
+        time.sleep(0.05)  # CPU負荷調整
+
+    cap.release()
+    if ser:
+        ser.close()
+
+# === 実行 ===
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n[INFO] 終了します")
