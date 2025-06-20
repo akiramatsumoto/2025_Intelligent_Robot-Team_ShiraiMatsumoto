@@ -173,7 +173,7 @@ void loop() {
         side_line = false;
       }
       if (linePos == 3)
-        state = STATE_BALL_COLLECT;
+        state = STATE_BALL_DETECT;
       break;  
 
   case STATE_BALL_DETECT:
@@ -186,7 +186,7 @@ void loop() {
     if (abs(angle) <= tolerance_angle) {
       stopAll();
       delay(1000);
-      state = STATE_BALL_DETECT;
+      state = STATE_BALL_COLLECT;
     } else if (!stringComplete) {
       // 次のシリアル入力を待つ
       // rotateRobot() は processSerialData 内で呼び出されるためここでは何もしない
@@ -198,12 +198,13 @@ void loop() {
       encoderLeft.write(0);
 
       // ボール検出まで直進
-      driveStraight();
-      while (!isBallDetected()) {
+   
+      while (1/*!isBallDetected()*/) {
+        motorControl(55, 77);
         delay(10);
       }
       stopAll();
-//
+/*
       // 走行距離を記録
       long distanceRight = abs(encoderRight.read());
       long distanceLeft  = abs(encoderLeft.read());
@@ -246,7 +247,7 @@ void loop() {
         state = STATE_TO_RED_GOAL;  // 未知の色
         break;
       }
-      
+*/
     
     case STATE_TO_RED_GOAL:
     // 白井ここ書いて 
