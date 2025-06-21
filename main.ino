@@ -149,8 +149,28 @@ void loop() {
   switch (state) {
     case STATE_WAIT:
       stopAll();
-      delay(30000);
-      state = STATE_BALL_DETECT;
+
+      // 真ん中2つのフォトリフレクタが反応するまで回転する処理のテスト
+      while(1) {
+        sensor_value_L = analogRead(LINE_CH4_PIN);  
+        Serial.println(sensor_value_L);
+      }
+      /*
+      // センサの更新
+      sensor_value_L = analogRead(LINE_CH4_PIN) >> 2;  
+      sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2;
+
+      while(sensor_value_R > 100 && sensor_value_L > 100){
+        motorControl(255, -255);
+        delay(5);
+        stopAll();
+        delay(100);
+      }
+      */
+      // ここまで
+
+      delay(3000000);
+      state = STATE_TO_BALL_AREA;
       break;
 
     case STATE_TO_BALL_AREA:
