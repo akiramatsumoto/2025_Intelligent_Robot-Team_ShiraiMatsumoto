@@ -155,6 +155,9 @@ void loop() {
     case STATE_WAIT:
       stopAll();
 
+      encoderRight.write(0);
+      encoderLeft.write(0);
+
       int detectedCount = 0;  // 連続trueカウント
       int psdCount = 0;           // 検出回数カウント
 
@@ -174,8 +177,10 @@ void loop() {
           detectedCount = 0;  // 連続が途切れたらリセット
         }
 
-        motorControl(55, 77);
-        delay(50);  // センサ応答とモータ動作安定化のための待ち
+        motorControl(255, 255);
+        delay(5);  // センサ応答とモータ動作安定化のための待ち
+        stopAll();
+        delay(5);
       }
       stopAll();
       delay(500000);
