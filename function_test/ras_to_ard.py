@@ -14,21 +14,14 @@ MAX_RETRIES = 5
 RETRY_DELAY = 2  # 秒
 HFOV = 60.0  # カメラの水平視野角
 
-# === 色ごとのHSV範囲 ===
+# === 赤色のHSV範囲のみ ===
 color_ranges = {
     "Red": [
         (np.array([0,   100, 100]), np.array([10,  255, 255])),
         (np.array([160, 100, 100]), np.array([180, 255, 255]))
-    ],
-    "Blue": [
-        (np.array([100, 150, 100]), np.array([130, 255, 255]))
-    ],
-    "Yellow": [
-        (np.array([20,  100, 100]), np.array([30,  255, 255]))
     ]
 }
 
-# === シリアル初期化（再接続リトライ付き） ===
 def init_serial():
     for i in range(MAX_RETRIES):
         try:
@@ -42,7 +35,6 @@ def init_serial():
     print("[ERROR] Could not open serial port.")
     return None
 
-# === シリアル再接続のラッパー ===
 def safe_serial_write(ser, msg):
     try:
         if ser and ser.is_open:
@@ -55,7 +47,6 @@ def safe_serial_write(ser, msg):
         return init_serial()
     return ser
 
-# === メイン処理 ===
 def main():
     ser = init_serial()
 
@@ -77,45 +68,35 @@ def main():
         blurred = cv2.GaussianBlur(frame, (11, 11), 0)
         hsv     = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
-        max_area_color = None
-        max_area_value = 0
-        max_angle      = 0.0
+        mask = np.zeros_like(cv2.inRange(hsv, (0,0,0), (0,0,0)))
+        for lower, upper in color_ranges["Red"]:  # ★赤色だけ処理
+            mask |= cv2.inRange(hsv, lower, upper)
 
-        for color_name, ranges in color_ranges.items():
-            mask = np.zeros_like(cv2.inRange(hsv, (0,0,0), (0,0,0)))
-            for lower, upper in ranges:
-                mask |= cv2.inRange(hsv, lower, upper)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            time.sleep(0.05)
+            continue
 
-            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            if not contours:
-                continue
+        cnt  = max(contours, key=cv2.contourArea)
+        area = cv2.contourArea(cnt)
+        if area < 500:
+            time.sleep(0.05)
+            continue
 
-            cnt  = max(contours, key=cv2.contourArea)
-            area = cv2.contourArea(cnt)
-            if area < 500:
-                continue
+        (x, y), radius = cv2.minEnclosingCircle(cnt)
+        dx    = x - center_x
+        angle = (dx / center_x) * (HFOV / 2)
 
-            (x, y), radius = cv2.minEnclosingCircle(cnt)
-            dx    = x - center_x
-            angle = (dx / center_x) * (HFOV / 2)
+        msg = f"Red,{int(area)},{angle:.2f}\n"  # ★色は "Red" に固定
+        print(f"[SEND] {msg.strip()}")
+        ser = safe_serial_write(ser, msg)
 
-            if area > max_area_value:
-                max_area_color = color_name
-                max_area_value = area
-                max_angle      = angle
-
-        if max_area_color:
-            msg = f"{max_area_color},{int(max_area_value)},{max_angle:.2f}\n"
-            print(f"[SEND] {msg.strip()}")
-            ser = safe_serial_write(ser, msg)
-
-        time.sleep(0.05)  # CPU負荷調整
+        time.sleep(0.05)
 
     cap.release()
     if ser:
         ser.close()
 
-# === 実行 ===
 if __name__ == "__main__":
     try:
         main()
