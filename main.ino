@@ -51,7 +51,7 @@
 #define STATE_DROP_BLUE     11
 #define STATE_FUNCTION_TEST 12
 
-#define ROTATE_C 5000
+#define ROTATE_C 6600
 
 #define PWM_RIGHT_MAX 77
 #define PWM_LEFT_MAX  55
@@ -79,7 +79,7 @@ const float tolerance_angle = 15;
 // STATE_BALL_DETECTがスキップされないように予めtolerance_angleに1を足す
 float angle = tolerance_angle + 1.0;
 
-int state = 4; // 現在の状態
+int state = 1; // 現在の状態
 bool psd = false;       // 測距センサ検出フラグ
 int color = 0;          // ボール色: 0=なし,1=赤,2=黄,3=青
 // 0617_松本変更
@@ -154,8 +154,8 @@ void loop() {
   switch (state) {
     case STATE_WAIT:
       stopAll();
-      delay(5000);
-      state = STATE_FORWARD;
+      delay(15000);
+      state = STATE_BALL_DETECT;
       break;
 
     case STATE_FORWARD:
@@ -194,17 +194,37 @@ void loop() {
     break;
 
     case STATE_BALL_COLLECT:
+      stopAll();
+
       encoderRight.write(0);
       encoderLeft.write(0);
 
-      // ボール検出まで直進
-   
-      while (1/*!isBallDetected()*/) {
-        motorControl(55, 77);
-        delay(10);
+      int detectedCount = 0;  // 連続trueカウント
+      int psdCount = 0;           // 検出回数カウント
+
+      while (psdCount <= 1) {
+        bool detected = isBallDetected();
+        Serial.print("Detected: "); Serial.print(detected);
+        Serial.print(" | detectedCount: "); Serial.print(detectedCount);
+        Serial.print(" | psdCount: "); Serial.println(psdCount);
+
+        if (detected) {
+          detectedCount++;
+          if (detectedCount >= 5) {  // 5回連続でtrueなら1カウント
+            psdCount++;
+            detectedCount = 0;  // リセットして次の検出を待つ
+          }
+        } else {
+          detectedCount = 0;  // 連続が途切れたらリセット
+        }
+
+        motorControl(255, 255);
+        delay(5);  // センサ応答とモータ動作安定化のための待ち
+        stopAll();
+        delay(5);
       }
       stopAll();
-/*
+
       // 走行距離を記録
       long distanceRight = abs(encoderRight.read());
       long distanceLeft  = abs(encoderLeft.read());
@@ -213,7 +233,7 @@ void loop() {
 
       delay(1000);
 
-      rotateRobot(10, 18);
+      rotateRobot(180, 1);
       delay(1000);
 
       stopAll();
@@ -222,32 +242,22 @@ void loop() {
       // 記録した距離だけ戻る
       encoderRight.write(0);
       encoderLeft.write(0);
-      driveStraight();
       while (true) {
+        motorControl(255, 255);
+        delay(5);  // センサ応答とモータ動作安定化のための待ち
+        stopAll();
+        delay(50);
         long posR = abs(encoderRight.read());
         long posL = abs(encoderLeft.read());
         long avgPos = (posR + posL) / 2;
 
         if (avgPos >= avgDistance) {
           stopAll();
+          delay(1000000);
           break;
         }
         delay(10);
       }
-      if (color == 1) {
-        state = STATE_TO_RED_GOAL;
-        break;
-      } else if (color == 2) {
-        state = STATE_TO_YELLOW_GOAL;
-        break;
-      } else if (color == 3) {
-        state = STATE_TO_BLUE_GOAL;
-        break;
-      } else {
-        state = STATE_TO_RED_GOAL;  // 未知の色
-        break;
-      }
-*/
     
     case STATE_TO_RED_GOAL:
     // 白井ここ書いて 
