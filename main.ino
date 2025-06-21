@@ -61,9 +61,8 @@
 #define KP 0.3
 #define KI 0.02
 
-
 // ゴールモーション
-#define BACK_TIME 50
+#define FORWORD_TIME 25
 #define TO_BLUE_GOAL 2000
 
 Encoder encoderRight(ENC_RIGHT_A, ENC_RIGHT_B);
@@ -264,9 +263,6 @@ void loop() {
           }
         }
       }
-      // なんかあったらとりあえず赤色ゴールに行く
-      state = STATE_TO_RED_GOAL;  
-      break;
     
     case STATE_TO_RED_GOAL:
     // 白井ここ書いて 
@@ -306,17 +302,20 @@ void loop() {
     
     case STATE_DROP_RED:
       // 赤・黄色ゴール用
-      // 少し後ろに下がる
-      motorControl(-255, -255);
-      // とりあえず0.05秒にしてるけどあとで調整
-      delay(BACK_TIME);
+      stopAll();
+      delay(1000);
+      motorControl(255, 255);
+      // 少し前に進む
+      delay(FORWORD_TIME);
+      stopAll();
+      delay(1000);
       // もし今黒を踏んでいたら少し回転
       sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
       if(sensor_value_R < 100){
         motorControl(255, -255);
-        delay(20);
+        delay(5);
         stopAll();
-        delay(1000);
+        delay(100);
       }
       // センサの値を更新
       sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
@@ -324,72 +323,74 @@ void loop() {
       while(sensor_value_R < 100){
         sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
         motorControl(255, -255);
-        delay(20);
+        delay(5);
         stopAll();
-        delay(1000);
+        delay(100);
       }
       // サーボモータを下げる
       // しばらく待つ
       // サーボモータを上げる
       // もし今黒を踏んでいたら少し回転
       sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
-      if(sensor_value_R > 100){
+      if(sensor_value_R < 100){
         motorControl(255, -255);
-        delay(BACK_TIME);
+        delay(5);
         stopAll();
-        delay(1000);
+        delay(100);
       }
+      // センサの値を更新
+      sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
       // もう一度黒を踏むまで回転
       while(sensor_value_R < 100){
         sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
         motorControl(255, -255);
-        delay(20);
+        delay(5);
         stopAll();
-        delay(1000);
+        delay(100);
       }
       state = STATE_TO_BALL_AREA;
       break;
 
     case STATE_DROP_YELLOW:
       // 赤・黄色ゴール用
-      // 少し後ろに下がる
-      motorControl(-255, -255);
-      // とりあえず0.05秒にしてるけどあとで調整
-      delay(BACK_TIME);
       // もし今黒を踏んでいたら少し回転
       sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
-      if(sensor_value_R > 100){
+      if(sensor_value_R < 100){
         motorControl(255, -255);
-        delay(20);
+        delay(5);
         stopAll();
-        delay(1000);
+        delay(100);
       }
+      // センサの値を更新
+      sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
       // もう一度黒を踏むまで回転
       while(sensor_value_R < 100){
         sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
         motorControl(255, -255);
-        delay(20);
+        delay(5);
         stopAll();
-        delay(1000);
+        delay(100);
       }
       // サーボモータを下げる
       // しばらく待つ
       // サーボモータを上げる
       // もし今黒を踏んでいたら少し回転
       sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
-      if(sensor_value_R > 100){
+      if(sensor_value_R < 100){
         motorControl(255, -255);
-        delay(BACK_TIME);
+        delay(5);
         stopAll();
-        delay(1000);
+        delay(100);
       }
+      // センサの値を更新
+      sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
       // もう一度黒を踏むまで回転
       while(sensor_value_R < 100){
         sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
         motorControl(255, -255);
-        delay(20);
+        delay(5);
         stopAll();
-        delay(1000);
+        delay(100);
       }
       state = STATE_TO_BALL_AREA;
       break;
