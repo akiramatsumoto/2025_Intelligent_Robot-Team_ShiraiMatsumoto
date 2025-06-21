@@ -51,7 +51,7 @@
 #define STATE_DROP_BLUE     11
 #define STATE_FUNCTION_TEST 12
 
-#define ROTATE_C 5000
+#define ROTATE_C 6600
 
 #define PWM_RIGHT_MAX 77
 #define PWM_LEFT_MAX  55
@@ -192,7 +192,7 @@ void loop() {
 
       delay(1000);
 
-      rotateRobot(10, 18);
+      rotateRobot(180, 1);
       delay(1000);
 
       stopAll();
@@ -205,7 +205,7 @@ void loop() {
         motorControl(255, 255);
         delay(5);  // センサ応答とモータ動作安定化のための待ち
         stopAll();
-        delay(5);
+        delay(50);
         long posR = abs(encoderRight.read());
         long posL = abs(encoderLeft.read());
         long avgPos = (posR + posL) / 2;
@@ -263,7 +263,7 @@ void loop() {
 
       // ボール検出まで直進
    
-      while (1/*!isBallDetected()*/) {
+      while (1) {
         motorControl(55, 77);
         delay(10);
       }
