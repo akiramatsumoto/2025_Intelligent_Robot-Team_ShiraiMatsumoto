@@ -38,34 +38,32 @@
 #define DIST_SCL_PIN  21
 
 /* FSM 状態定義 */
-#define STATE_WAIT           1
-#define STATE_FORWARD        2
-#define STATE_TO_BALL_AREA   3
-#define STATE_BALL_DETECT    4
-#define STATE_BALL_COLLECT   5
-#define STATE_TO_RED_GOAL    6
-#define STATE_TO_YELLOW_GOAL 7
-#define STATE_TO_BLUE_GOAL   8
-#define STATE_DROP_RED       9
-#define STATE_DROP_YELLOW   10
-#define STATE_DROP_BLUE     11
-#define STATE_FUNCTION_TEST 12
-
-#define ROTATE_C 6600
+#define STATE_WAIT           0
+#define STATE_TO_BALL_AREA   1
+#define STATE_BALL_DETECT    2
+#define STATE_BALL_COLLECT   3
+#define STATE_TO_RED_GOAL    4
+#define STATE_TO_YELLOW_GOAL 5
+#define STATE_TO_BLUE_GOAL   6
+#define STATE_DROP_RED       7
+#define STATE_DROP_YELLOW    8 
+#define STATE_DROP_BLUE      9
 
 #define PWM_RIGHT_MAX 77
 #define PWM_LEFT_MAX  55
 #define PWM_RIGHT_MIN 65
 #define PWM_LEFT_MIN  50
 
+// 関数rotateRobotで使用
+#define ROTATE_C 6600
+// エンコーダの値の許容誤差
 #define TOLERANCE 10
 #define KP 0.3
 #define KI 0.02
 
-#define START_TO_RINE 1000
-// ラインからゴールまで直進を待機する時間
-#define TO_RED_GOAL 1000
-#define TO_YELLOW_GOAL 1000
+
+// ゴールモーション
+#define BACK_TIME 50
 #define TO_BLUE_GOAL 2000
 
 Encoder encoderRight(ENC_RIGHT_A, ENC_RIGHT_B);
@@ -79,12 +77,11 @@ const float tolerance_angle = 15;
 // STATE_BALL_DETECTがスキップされないように予めtolerance_angleに1を足す
 float angle = tolerance_angle + 1.0;
 
-int state = 1; // 現在の状態
+int state = STATE_WAIT; // 現在の状態
 bool psd = false;       // 測距センサ検出フラグ
 int color = 0;          // ボール色: 0=なし,1=赤,2=黄,3=青
-// 0617_松本変更
-// 扱い考えると1からスタートしたほうがいい
-int linePos = 0;        // ライン位置番号: 1～4
+// 0621_松本変更
+int linePos = 0;        // ライン位置番号: 0~3
 
 // シリアル通信用
 String inputString = "";
@@ -135,7 +132,6 @@ void setup() {
 }
 
 void loop() {
-  Serial.print(state);
   //0616_白井追加_センサの値読み処理_どこに追加すべきかよくわかっていない
   //センサ値はbit下げて分解能下げが良さげな感じの雰囲気がした気がする
   int sensor_value_L = analogRead(LINE_CH4_PIN) >> 2;  // 左センサ値
@@ -154,14 +150,8 @@ void loop() {
   switch (state) {
     case STATE_WAIT:
       stopAll();
-      delay(15000);
+      delay(30000);
       state = STATE_BALL_DETECT;
-      break;
-
-    case STATE_FORWARD:
-      driveStraight();
-      if (line_L == 1 && line_R == 1)
-        state = STATE_TO_BALL_AREA;
       break;
 
     case STATE_TO_BALL_AREA:
@@ -176,22 +166,22 @@ void loop() {
         state = STATE_BALL_DETECT;
       break;  
 
-  case STATE_BALL_DETECT:
-    if (stringComplete) {
-      processSerialData(inputString);
-      inputString = "";
-      stringComplete = false;
-    }
+    case STATE_BALL_DETECT:
+      if (stringComplete) {
+        processSerialData(inputString);
+        inputString = "";
+        stringComplete = false;
+      }
 
-    if (abs(angle) <= tolerance_angle) {
-      stopAll();
-      delay(1000);
-      state = STATE_BALL_COLLECT;
-    } else if (!stringComplete) {
-      // 次のシリアル入力を待つ
-      // rotateRobot() は processSerialData 内で呼び出されるためここでは何もしない
-    }
-    break;
+      if (abs(angle) <= tolerance_angle) {
+        stopAll();
+        delay(1000);
+        state = STATE_BALL_COLLECT;
+      } else if (!stringComplete) {
+        // 次のシリアル入力を待つ
+        // rotateRobot() は processSerialData 内で呼び出されるためここでは何もしない
+      }
+      break;
 
     case STATE_BALL_COLLECT:
       stopAll();
@@ -219,7 +209,7 @@ void loop() {
         }
 
         motorControl(255, 255);
-        delay(5);  // センサ応答とモータ動作安定化のための待ち
+        delay(5);  
         stopAll();
         delay(5);
       }
@@ -242,9 +232,13 @@ void loop() {
       // 記録した距離だけ戻る
       encoderRight.write(0);
       encoderLeft.write(0);
+
+      // 3本目のラインは越えている状態
+      linePos -= 1; 
+
       while (true) {
         motorControl(255, 255);
-        delay(5);  // センサ応答とモータ動作安定化のための待ち
+        delay(5); 
         stopAll();
         delay(50);
         long posR = abs(encoderRight.read());
@@ -253,11 +247,26 @@ void loop() {
 
         if (avgPos >= avgDistance) {
           stopAll();
-          delay(1000000);
-          break;
+          /* ここに真ん中2つのフォトリフレクタが反応するまで回転する処理を書く */
+          delay(10);
+          if (color == 1) {
+            state = STATE_TO_RED_GOAL;
+            break;
+          } else if (color == 2) {
+            state = STATE_TO_YELLOW_GOAL;
+            break;
+          } else if (color == 3) {
+            state = STATE_TO_BLUE_GOAL;
+            break;
+          } else {
+            state = STATE_TO_RED_GOAL;  // 未知の色
+            break;
+          }
         }
-        delay(10);
       }
+      // なんかあったらとりあえず赤色ゴールに行く
+      state = STATE_TO_RED_GOAL;  
+      break;
     
     case STATE_TO_RED_GOAL:
     // 白井ここ書いて 
@@ -267,7 +276,7 @@ void loop() {
         linePos -= 1;
         side_line = false;
       }
-      if (linePos == 1)
+      if (linePos == 0)
         state = STATE_DROP_RED;
       break; 
 
@@ -279,7 +288,7 @@ void loop() {
         linePos -= 1;
         side_line = false;
       }
-      if (linePos == 2)
+      if (linePos == 1)
         state = STATE_DROP_YELLOW;
       break;  
 
@@ -291,106 +300,106 @@ void loop() {
         linePos -= 1;
         side_line = false;
       }
-      if (linePos == 3)
+      if (linePos == 2)
         state = STATE_DROP_BLUE;
       break;  
     
     case STATE_DROP_RED:
-      // 赤色ゴールのモーション
-      stopAll();
-      delay(1000);
-
-      rotateRobot(10, 9);
-
-      stopAll();
-      delay(1000);
-
-      driveStraight();
-      delay(TO_RED_GOAL);
-
-      stopAll();
-      delay(1000);
-
+      // 赤・黄色ゴール用
+      // 少し後ろに下がる
+      motorControl(-255, -255);
+      // とりあえず0.05秒にしてるけどあとで調整
+      delay(BACK_TIME);
+      // もし今黒を踏んでいたら少し回転
+      sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
+      if(sensor_value_R < 100){
+        motorControl(255, -255);
+        delay(20);
+        stopAll();
+        delay(1000);
+      }
+      // センサの値を更新
+      sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
+      // もう一度黒を踏むまで回転
+      while(sensor_value_R < 100){
+        sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
+        motorControl(255, -255);
+        delay(20);
+        stopAll();
+        delay(1000);
+      }
       // サーボモータを下げる
-
-      rotateRobot(10, 18);
-
-      stopAll();
-      delay(1000);
-
-      driveStraight();
-      delay(TO_RED_GOAL);
-
-      rotateRobot(10, 9);
-
-      stopAll();
-      delay(1000);
-
+      // しばらく待つ
+      // サーボモータを上げる
+      // もし今黒を踏んでいたら少し回転
+      sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
+      if(sensor_value_R > 100){
+        motorControl(255, -255);
+        delay(BACK_TIME);
+        stopAll();
+        delay(1000);
+      }
+      // もう一度黒を踏むまで回転
+      while(sensor_value_R < 100){
+        sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
+        motorControl(255, -255);
+        delay(20);
+        stopAll();
+        delay(1000);
+      }
       state = STATE_TO_BALL_AREA;
       break;
 
     case STATE_DROP_YELLOW:
-      // 黄色ゴールのモーション
-      stopAll();
-      delay(1000);
-
-      rotateRobot(10, 9);
-
-      stopAll();
-      delay(1000);
-
-      driveStraight();
-      delay(TO_YELLOW_GOAL);
-
-      stopAll();
-      delay(1000);
-
+      // 赤・黄色ゴール用
+      // 少し後ろに下がる
+      motorControl(-255, -255);
+      // とりあえず0.05秒にしてるけどあとで調整
+      delay(BACK_TIME);
+      // もし今黒を踏んでいたら少し回転
+      sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
+      if(sensor_value_R > 100){
+        motorControl(255, -255);
+        delay(20);
+        stopAll();
+        delay(1000);
+      }
+      // もう一度黒を踏むまで回転
+      while(sensor_value_R < 100){
+        sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
+        motorControl(255, -255);
+        delay(20);
+        stopAll();
+        delay(1000);
+      }
       // サーボモータを下げる
-
-      rotateRobot(10, 18);
-
-      stopAll();
-      delay(1000);
-
-      driveStraight();
-      delay(TO_YELLOW_GOAL);
-
-      rotateRobot(10, 9);
-
-      stopAll();
-      delay(1000);
-
+      // しばらく待つ
+      // サーボモータを上げる
+      // もし今黒を踏んでいたら少し回転
+      sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
+      if(sensor_value_R > 100){
+        motorControl(255, -255);
+        delay(BACK_TIME);
+        stopAll();
+        delay(1000);
+      }
+      // もう一度黒を踏むまで回転
+      while(sensor_value_R < 100){
+        sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
+        motorControl(255, -255);
+        delay(20);
+        stopAll();
+        delay(1000);
+      }
       state = STATE_TO_BALL_AREA;
       break;
 
     case STATE_DROP_BLUE:
       // 青色ゴールのモーション
-      stopAll();
-      delay(1000);
-
-      driveStraight();
-      delay(TO_BLUE_GOAL);
-
-      stopAll();
-      delay(1000);
-
-      // サーボモータを下げる
-
-      rotateRobot(10, 18);
-
-      stopAll();
-      delay(1000);
-
-      driveStraight();
-      delay(TO_BLUE_GOAL);
-
-      stopAll();
-      delay(1000);
-
+      // 前に進む
+      // 180°回転 あとで関数つくる
+      // 前に進む
       state = STATE_TO_BALL_AREA;
-      break;
-
-    case STATE_FUNCTION_TEST:
       break;
 
     default:
