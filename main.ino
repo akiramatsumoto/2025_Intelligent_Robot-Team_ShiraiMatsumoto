@@ -50,9 +50,9 @@
 #define STATE_DROP_BLUE      9
 
 #define PWM_RIGHT_MAX 77
-#define PWM_LEFT_MAX  60
+#define PWM_LEFT_MAX  55
 #define PWM_RIGHT_MIN 65
-#define PWM_LEFT_MIN  55
+#define PWM_LEFT_MIN  50
 
 // 関数rotateRobotで使用
 #define ROTATE_C 6600
@@ -134,9 +134,7 @@ void loop() {
   //0616_白井追加_センサの値読み処理_どこに追加すべきかよくわかっていない
   //センサ値はbit下げて分解能下げが良さげな感じの雰囲気がした気がする
   int sensor_value_L = analogRead(LINE_CH4_PIN) >> 2;  // 左センサ値
-  // 白で130くらい，黒で180くらい
   int sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2;  // 右センサ値 実際の環境で試さないと何とも言えぬ
-  // 白で70くらい，黒で180くらい
 
   int line_L = digitalRead(LINE_CH2_PIN);
   int line_R = digitalRead(LINE_CH7_PIN);
@@ -153,41 +151,31 @@ void loop() {
       stopAll();
 
       // 真ん中2つのフォトリフレクタが反応するまで回転する処理のテスト
-      // センサの更新
-      
-      sensor_value_L = analogRead(LINE_CH4_PIN) >> 2;  
-      sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2;
-      rotateRobot(3,15);
-      rotateRobot(-3,30);
-      while(1){
-
-        /*
-        for(int i = 0; i < 5; i++){
+      while(1) {
           sensor_value_L = analogRead(LINE_CH4_PIN) >> 2;  
           sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2;
           if(sensor_value_R > 100 || sensor_value_L > 150) {
             break;
           }
           motorControl(255, -255);
-          delay(20);
+          delay(5);
           stopAll();
-          delay(100);      
-        }
-        for(int i = 0; i < ; i++){
-          sensor_value_L = analogRead(LINE_CH4_PIN) >> 2;  
-          sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2;
-          if(sensor_value_R > 100 || sensor_value_L > 150) {
-            break;
-          }
-          motorControl(-255, 200);
-          delay(20);
-          stopAll();
-          delay(100);      
-        } */
+          delay(100); 
       }
-      stopAll();
+      /*
+      // センサの更新
+      sensor_value_L = analogRead(LINE_CH4_PIN) >> 2;  
+      sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2;
+
+      while(sensor_value_R > 100 && sensor_value_L > 100){
+        motorControl(255, -255);
+        delay(5);
+        stopAll();
+        delay(100);
+      }
+      */
       // ここまで
-      
+
       delay(3000000);
       state = STATE_TO_BALL_AREA;
       break;
