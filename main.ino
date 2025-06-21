@@ -50,9 +50,9 @@
 #define STATE_DROP_BLUE      9
 
 #define PWM_RIGHT_MAX 77
-#define PWM_LEFT_MAX  55
+#define PWM_LEFT_MAX  60
 #define PWM_RIGHT_MIN 65
-#define PWM_LEFT_MIN  50
+#define PWM_LEFT_MIN  55
 
 // 関数rotateRobotで使用
 #define ROTATE_C 6600
@@ -151,8 +151,7 @@ void loop() {
 
   switch (state) {
     case STATE_WAIT:
-      stopAll();
-      delay(20000);
+      delay(40000);
       state = STATE_TO_BALL_AREA;
       break;
 
@@ -169,6 +168,8 @@ void loop() {
       break;  
 
     case STATE_BALL_DETECT:
+      delay(2000);
+
       if (stringComplete) {
         processSerialData(inputString);
         inputString = "";
@@ -436,8 +437,8 @@ void pidControl(int sensor_value_L, int sensor_value_R) {
   I_diff = constrain(I_diff, -I_max, I_max);
 
   // 左右の速度調整
-  speed_l = constrain(base_speed + rotate, 0, 50); //ここ変える!
-  speed_r = constrain(base_speed - rotate, 0, 100) * 1.5; //ここ変える!
+  speed_l = constrain(base_speed + rotate, 0, 60); //ここ変える!
+  speed_r = constrain(base_speed - rotate, 0, 80); //ここ変える!
 
   /* 0617_松本追加 */  
   // モーター制御
