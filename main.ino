@@ -131,6 +131,9 @@ void setup() {
 }
 
 void loop() {
+  Serial.print(state);
+  Serial.print(" ");
+  Serial.println(linePos);
   //0616_白井追加_センサの値読み処理_どこに追加すべきかよくわかっていない
   //センサ値はbit下げて分解能下げが良さげな感じの雰囲気がした気がする
   int sensor_value_L = analogRead(LINE_CH4_PIN) >> 2;  // 左センサ値
@@ -149,34 +152,7 @@ void loop() {
   switch (state) {
     case STATE_WAIT:
       stopAll();
-
-      // 真ん中2つのフォトリフレクタが反応するまで回転する処理のテスト
-      while(1) {
-          sensor_value_L = analogRead(LINE_CH4_PIN) >> 2;  
-          sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2;
-          if(sensor_value_R > 100 || sensor_value_L > 150) {
-            break;
-          }
-          motorControl(255, -255);
-          delay(5);
-          stopAll();
-          delay(100); 
-      }
-      /*
-      // センサの更新
-      sensor_value_L = analogRead(LINE_CH4_PIN) >> 2;  
-      sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2;
-
-      while(sensor_value_R > 100 && sensor_value_L > 100){
-        motorControl(255, -255);
-        delay(5);
-        stopAll();
-        delay(100);
-      }
-      */
-      // ここまで
-
-      delay(3000000);
+      delay(20000);
       state = STATE_TO_BALL_AREA;
       break;
 
@@ -274,6 +250,17 @@ void loop() {
         if (avgPos >= avgDistance) {
           stopAll();
           /* ここに真ん中2つのフォトリフレクタが反応するまで回転する処理を書く */
+          while(1) {
+            sensor_value_L = analogRead(LINE_CH4_PIN) >> 2;  
+            sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2;
+            if(sensor_value_R > 100 || sensor_value_L > 150) {
+              break;
+            }
+            motorControl(255, -255);
+            delay(5);
+            stopAll();
+            delay(100); 
+          }
           delay(10);
           if (color == 1) {
             state = STATE_TO_RED_GOAL;
