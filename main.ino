@@ -197,7 +197,27 @@ void loop() {
     encoderLeft.write(0);
     int detectedCount = 0;  // 連続trueカウント
     int psdCount = 0;           // 検出回数カウント
+      while (psdCount <= 1) {
+        bool detected = isBallDetected();
+        Serial.print("Detected: "); Serial.print(detected);
+        Serial.print(" | detectedCount: "); Serial.print(detectedCount);
+        Serial.print(" | psdCount: "); Serial.println(psdCount);
 
+        if (detected) {
+          detectedCount++;
+          if (detectedCount >= 5) {  // 5回連続でtrueなら1カウント
+            psdCount++;
+            detectedCount = 0;  // リセットして次の検出を待つ
+          }
+        } else {
+          detectedCount = 0;  // 連続が途切れたらリセット
+        }
+
+        motorControl(255, 255);
+        delay(5);  
+        stopAll();
+        delay(5);
+      }
           stopAll();
 
       // 走行距離を記録
@@ -220,6 +240,34 @@ void loop() {
 
       // 3本目のラインは越えている状態
       linePos -= 1; 
+      while (!psd) {
+        motorControl(255, 255);
+        delay(5); 
+        stopAll();
+        delay(50);
+        long posR = abs(encoderRight.read());
+        long posL = abs(encoderLeft.read());
+        long avgPos = (posR + posL) / 2;
+
+        if (avgPos >= avgDistance) {
+          stopAll();
+          /* ここに真ん中2つのフォトリフレクタが反応するまで回転する処理を書く */
+          delay(10);
+          if (color == 1) {
+            state = STATE_TO_RED_GOAL;
+            break;
+          } else if (color == 2) {
+            state = STATE_TO_YELLOW_GOAL;
+            break;
+          } else if (color == 3) {
+            state = STATE_TO_BLUE_GOAL;
+            break;
+          } else {
+            state = STATE_TO_RED_GOAL;  // 未知の色
+            break;
+          }
+        }
+      }
 
     break;
     
