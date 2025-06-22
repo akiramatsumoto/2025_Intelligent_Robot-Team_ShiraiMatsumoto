@@ -191,6 +191,36 @@ void loop() {
       break;
 
     case STATE_BALL_COLLECT:
+    stopAll();
+
+    encoderRight.write(0);
+    encoderLeft.write(0);
+    int detectedCount = 0;  // 連続trueカウント
+    int psdCount = 0;           // 検出回数カウント
+
+          stopAll();
+
+      // 走行距離を記録
+      long distanceRight = abs(encoderRight.read());
+      long distanceLeft  = abs(encoderLeft.read());
+      long avgDistance = (distanceRight + distanceLeft) / 2;
+      Serial.print("進んだ距離: "); Serial.println(avgDistance);
+
+      delay(1000);
+
+      rotateRobot(180, 1);
+      delay(1000);
+
+      stopAll();
+      delay(1000);
+
+      // 記録した距離だけ戻る
+      encoderRight.write(0);
+      encoderLeft.write(0);
+
+      // 3本目のラインは越えている状態
+      linePos -= 1; 
+
     break;
     
     case STATE_TO_RED_GOAL:
@@ -341,6 +371,8 @@ void loop() {
       break;
   }
   delay(50);
+  Serial.print("現在のステート: ");
+  Serial.println(state);
 }
 
 //0616_白井追加
