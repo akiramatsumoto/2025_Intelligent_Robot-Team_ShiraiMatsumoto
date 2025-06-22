@@ -80,7 +80,7 @@ int state = STATE_BALL_COLLECT; // 現在の状態
 bool psd = false;       // 測距センサ検出フラグ
 int color = 0;          // ボール色: 0=なし,1=赤,2=黄,3=青
 // 0621_松本変更
-int linePos = 0;        // ライン位置番号: 0~3
+int linePos = 3;        // ライン位置番号: 0~3
 
 // シリアル通信用
 String inputString = "";
@@ -151,6 +151,7 @@ void loop() {
 
   switch (state) {
     case STATE_WAIT:
+      stopCenterLine();
       delay(30000);
       state = STATE_TO_BALL_AREA;
       break;
@@ -255,6 +256,7 @@ void loop() {
 
         if (avgPos >= avgDistance) {
           stopAll();
+          delay(2000);
           if (!isCenterLineDetected()){
             stopCenterLine();
           }
@@ -619,39 +621,51 @@ void stopCenterLine() {
     if (attempts % 2 == 0) {
       // 90
       for (int i = 0; i < 15; i++) {
-      detected = isCenterLineDetected();
-      if(detected){
-        break;
-      }
-      rotateRobot(3, 1);
-      }
-      // -90
-      for (int i = 0; i < 10; i++) {
         detected = isCenterLineDetected();
         if(detected){
           break;
         }
-        rotateRobot(-3, 1);
+        motorControl(255, -255);
+        delay(5);
+        stopAll();
+        delay(100);
+      }
+      // -90
+      for (int i = 0; i < 15; i++) {
+        detected = isCenterLineDetected();
+        if(detected){
+          break;
+        }
+        motorControl(-255, 255);
+        delay(5);
+        stopAll();
+        delay(100);
       }
       // 下がっちゃうので戻す
       driveStraight();
       delay(20);
     } else {
         // -90
-        for (int i = 0; i < 14; i++) {
+        for (int i = 0; i < 15; i++) {
         detected = isCenterLineDetected();
         if(detected){
           break;
         }
-        rotateRobot(-3, 1);
+          motorControl(-255, 255);
+          delay(5);
+          stopAll();
+          delay(100);
         }
         // 90
-        for (int i = 0; i < 17; i++) {
+        for (int i = 0; i < 15; i++) {
           detected = isCenterLineDetected();
           if(detected){
             break;
           }
-          rotateRobot(3, 1);
+          motorControl(255, -255);
+          delay(5);
+          stopAll();
+          delay(100);
         }
         // 下がっちゃうので戻す
         driveStraight();
