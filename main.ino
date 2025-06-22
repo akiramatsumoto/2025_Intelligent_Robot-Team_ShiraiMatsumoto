@@ -151,8 +151,8 @@ void loop() {
 
   switch (state) {
     case STATE_WAIT:
-      delay(40000);
-      state = STATE_TO_BALL_AREA;
+      delay(10000);
+      state = STATE_BALL_DETECT;
       break;
 
     case STATE_TO_BALL_AREA:
@@ -163,12 +163,15 @@ void loop() {
         linePos += 1;
         side_line = false;
       }
-      if (linePos == 3)
+    // 試験用に2にする
+      if (linePos == 2)
         state = STATE_BALL_DETECT;
       break;  
 
     case STATE_BALL_DETECT:
+      stopAll();
       delay(2000);
+      Serial.println("START");
 
       if (stringComplete) {
         processSerialData(inputString);
@@ -177,13 +180,16 @@ void loop() {
       }
 
       if (abs(angle) <= tolerance_angle) {
+        Serial.println("STOP"); 
         stopAll();
-        delay(1000);
-        state = STATE_BALL_COLLECT;
+        angle = tolerance_angle + 1.0;
+        delay(5000);
+        state = STATE_BALL_DETECT;
       } else if (!stringComplete) {
         // 次のシリアル入力を待つ
         // rotateRobot() は processSerialData 内で呼び出されるためここでは何もしない
       }
+
       break;
 
     case STATE_BALL_COLLECT:
@@ -569,8 +575,6 @@ void processSerialData(String data) {
   String areaStr  = data.substring(firstComma + 1, secondComma);
   String angleStr = data.substring(secondComma + 1);
 
-  angle = angleStr.toFloat();
-
   // 色名から色番号に変換
   if (colorStr == "Red") {
     color = 1;
@@ -580,7 +584,10 @@ void processSerialData(String data) {
     color = 3;
   } else {
     color = 0;  // 未知の色
+    return;
   }
+
+  angle = angleStr.toFloat();
 
   // もし15度以内なら何もしない
   if (abs(angle) <= tolerance_angle) {
