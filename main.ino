@@ -190,13 +190,13 @@ void loop() {
       }
       break;
 
-    case STATE_BALL_COLLECT:
-    stopAll();
+    case STATE_BALL_COLLECT:{
+      stopAll();
 
-    encoderRight.write(0);
-    encoderLeft.write(0);
-    int detectedCount = 0;  // 連続trueカウント
-    int psdCount = 0;           // 検出回数カウント
+      encoderRight.write(0);
+      encoderLeft.write(0);
+      int detectedCount = 0;  // 連続trueカウント
+      int psdCount = 0;           // 検出回数カウント
       while (psdCount <= 1) {
         bool detected = isBallDetected();
         Serial.print("Detected: "); Serial.print(detected);
@@ -268,9 +268,8 @@ void loop() {
           }
         }
       }
+    }
 
-    break;
-    
     case STATE_TO_RED_GOAL:
     // 白井ここ書いて 
     //0616_白井追加_反時計回りを向いている物としている
@@ -419,8 +418,6 @@ void loop() {
       break;
   }
   delay(50);
-  Serial.print("現在のステート: ");
-  Serial.println(state);
 }
 
 //0616_白井追加
