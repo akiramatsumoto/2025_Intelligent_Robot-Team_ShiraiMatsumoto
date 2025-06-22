@@ -74,24 +74,21 @@ def main():
 
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
+            msg = "None,-1,0.00\n"
+            print(f"[SEND] {msg.strip()}")
+            ser = safe_serial_write(ser, msg)
             time.sleep(0.05)
             continue
 
         cnt  = max(contours, key=cv2.contourArea)
         area = cv2.contourArea(cnt)
         if area < 500:
+            msg = "None,-1,0.00\n"
+            print(f"[SEND] {msg.strip()}")
+            ser = safe_serial_write(ser, msg)
             time.sleep(0.05)
             continue
 
-        (x, y), radius = cv2.minEnclosingCircle(cnt)
-        dx    = x - center_x
-        angle = (dx / center_x) * (HFOV / 2)
-
-        msg = f"Red,{int(area)},{angle:.2f}\n"  # ★色は "Red" に固定
-        print(f"[SEND] {msg.strip()}")
-        ser = safe_serial_write(ser, msg)
-
-        time.sleep(0.05)
 
     cap.release()
     if ser:
