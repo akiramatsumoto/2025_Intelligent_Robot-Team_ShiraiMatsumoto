@@ -76,7 +76,7 @@ const float tolerance_angle = 15;
 // STATE_BALL_DETECTがスキップされないように予めtolerance_angleに1を足す
 float angle = tolerance_angle + 1.0;
 
-int state = STATE_WAIT; // 現在の状態
+int state = STATE_BALL_COLLECT; // 現在の状態
 bool psd = false;       // 測距センサ検出フラグ
 int color = 0;          // ボール色: 0=なし,1=赤,2=黄,3=青
 // 0621_松本変更
@@ -151,8 +151,8 @@ void loop() {
 
   switch (state) {
     case STATE_WAIT:
-      delay(10000);
-      state = STATE_BALL_DETECT;
+      delay(30000);
+      state = STATE_TO_BALL_AREA;
       break;
 
     case STATE_TO_BALL_AREA:
@@ -163,8 +163,7 @@ void loop() {
         linePos += 1;
         side_line = false;
       }
-    // 試験用に2にする
-      if (linePos == 2)
+      if (linePos == 3)
         state = STATE_BALL_DETECT;
       break;  
 
@@ -184,7 +183,7 @@ void loop() {
         stopAll();
         angle = tolerance_angle + 1.0;
         delay(5000);
-        state = STATE_BALL_DETECT;
+        state = STATE_BALL_COLLECT;
       } else if (!stringComplete) {
         // 次のシリアル入力を待つ
         // rotateRobot() は processSerialData 内で呼び出されるためここでは何もしない
@@ -256,18 +255,10 @@ void loop() {
 
         if (avgPos >= avgDistance) {
           stopAll();
-          /* ここに真ん中2つのフォトリフレクタが反応するまで回転する処理を書く */
-          while(1) {
-            sensor_value_L = analogRead(LINE_CH4_PIN) >> 2;  
-            sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2;
-            if(sensor_value_R > 100 || sensor_value_L > 150) {
-              break;
-            }
-            motorControl(255, -255);
-            delay(5);
-            stopAll();
-            delay(100); 
+          if (!isCenterLineDetected()){
+            stopCenterLine();
           }
+          stopAll();
           delay(10);
           if (color == 1) {
             state = STATE_TO_RED_GOAL;
@@ -533,7 +524,7 @@ void rotateRobot(float degree, int repeat) {
       delay(20);
     }
 
-    delay(1000); // 各回転の間に少し待つ
+    delay(500); // 各回転の間に少し待つ
   }
 }
 
@@ -589,6 +580,7 @@ void processSerialData(String data) {
 
   angle = angleStr.toFloat();
 
+  // 意味ないと思うけど消して動かなくなったら嫌だから残してる
   // もし15度以内なら何もしない
   if (abs(angle) <= tolerance_angle) {
     stopAll();
@@ -602,4 +594,71 @@ void processSerialData(String data) {
 
   stopAll();
   delay(5000);  // 一時停止して次の測定を待つ
+}
+
+// 0622松本追加
+// 中央2つのフォトリフレクタがラインを踏んでいるか
+bool isCenterLineDetected() {
+  bool detected = false;
+
+  int  sensor_value_L = analogRead(LINE_CH4_PIN) >> 2;
+  int sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2;
+
+  if (sensor_value_L > 150 || sensor_value_R > 100) {
+    detected = true;
+    return detected;
+  }
+}
+
+// 真ん中2つのフォトリフレクタが反応するまで回転する
+void stopCenterLine() {  
+  bool detected = isCenterLineDetected();
+  int attempts = 0;
+
+  while (!detected) {
+    if (attempts % 2 == 0) {
+      // 90
+      for (int i = 0; i < 15; i++) {
+      detected = isCenterLineDetected();
+      if(detected){
+        break;
+      }
+      rotateRobot(3, 1);
+      }
+      // -90
+      for (int i = 0; i < 10; i++) {
+        detected = isCenterLineDetected();
+        if(detected){
+          break;
+        }
+        rotateRobot(-3, 1);
+      }
+      // 下がっちゃうので戻す
+      driveStraight();
+      delay(20);
+    } else {
+        // -90
+        for (int i = 0; i < 14; i++) {
+        detected = isCenterLineDetected();
+        if(detected){
+          break;
+        }
+        rotateRobot(-3, 1);
+        }
+        // 90
+        for (int i = 0; i < 17; i++) {
+          detected = isCenterLineDetected();
+          if(detected){
+            break;
+          }
+          rotateRobot(3, 1);
+        }
+        // 下がっちゃうので戻す
+        driveStraight();
+        delay(20);
+    }
+    stopAll();
+    delay(500);
+    attempts++;
+  }
 }
