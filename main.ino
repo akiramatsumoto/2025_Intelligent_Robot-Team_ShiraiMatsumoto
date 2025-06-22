@@ -191,86 +191,6 @@ void loop() {
       break;
 
     case STATE_BALL_COLLECT:
-      stopAll();
-
-      encoderRight.write(0);
-      encoderLeft.write(0);
-
-      int detectedCount = 0;  // 連続trueカウント
-      int psdCount = 0;           // 検出回数カウント
-
-      while (psdCount <= 1) {
-        bool detected = isBallDetected();
-        Serial.print("Detected: "); Serial.print(detected);
-        Serial.print(" | detectedCount: "); Serial.print(detectedCount);
-        Serial.print(" | psdCount: "); Serial.println(psdCount);
-
-        if (detected) {
-          detectedCount++;
-          if (detectedCount >= 5) {  // 5回連続でtrueなら1カウント
-            psdCount++;
-            detectedCount = 0;  // リセットして次の検出を待つ
-          }
-        } else {
-          detectedCount = 0;  // 連続が途切れたらリセット
-        }
-
-        motorControl(255, 255);
-        delay(5);  
-        stopAll();
-        delay(5);
-      }
-      stopAll();
-
-      // 走行距離を記録
-      long distanceRight = abs(encoderRight.read());
-      long distanceLeft  = abs(encoderLeft.read());
-      long avgDistance = (distanceRight + distanceLeft) / 2;
-      Serial.print("進んだ距離: "); Serial.println(avgDistance);
-
-      delay(1000);
-
-      rotateRobot(180, 1);
-      delay(1000);
-
-      stopAll();
-      delay(1000);
-
-      // 記録した距離だけ戻る
-      encoderRight.write(0);
-      encoderLeft.write(0);
-
-      // 3本目のラインは越えている状態
-      linePos -= 1; 
-
-      while (!psd) {
-        motorControl(255, 255);
-        delay(5); 
-        stopAll();
-        delay(50);
-        long posR = abs(encoderRight.read());
-        long posL = abs(encoderLeft.read());
-        long avgPos = (posR + posL) / 2;
-
-        if (avgPos >= avgDistance) {
-          stopAll();
-          /* ここに真ん中2つのフォトリフレクタが反応するまで回転する処理を書く */
-          delay(10);
-          if (color == 1) {
-            state = STATE_TO_RED_GOAL;
-            break;
-          } else if (color == 2) {
-            state = STATE_TO_YELLOW_GOAL;
-            break;
-          } else if (color == 3) {
-            state = STATE_TO_BLUE_GOAL;
-            break;
-          } else {
-            state = STATE_TO_RED_GOAL;  // 未知の色
-            break;
-          }
-        }
-      }
     break;
     
     case STATE_TO_RED_GOAL:
@@ -483,7 +403,7 @@ void rotateRobot(float degree, int repeat) {
 
     long errorSum = 0;
     
-    while (true) {
+    while (0) {
       long posRight = encoderRight.read();
       long posLeft  = encoderLeft.read();
       long averagePos = (abs(posRight) + abs(posLeft)) / 2;
