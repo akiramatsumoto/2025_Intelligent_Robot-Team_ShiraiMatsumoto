@@ -69,26 +69,40 @@ def main():
         hsv     = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
         mask = np.zeros_like(cv2.inRange(hsv, (0,0,0), (0,0,0)))
-        for lower, upper in color_ranges["Red"]:  # ★赤色だけ処理
+        for lower, upper in color_ranges["Red"]:
             mask |= cv2.inRange(hsv, lower, upper)
 
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if not contours:
-            msg = "None,-1,0.00\n"
+
+        try:
+            if not contours:
+                msg = "None,-1,0.00\n"
+                print(f"[SEND] {msg.strip()}")
+                ser = safe_serial_write(ser, msg)
+                time.sleep(0.05)
+                continue
+
+            cnt  = max(contours, key=cv2.contourArea)
+            area = cv2.contourArea(cnt)
+            if area < 500:
+                msg = "None,-1,0.00\n"
+                print(f"[SEND] {msg.strip()}")
+                ser = safe_serial_write(ser, msg)
+                time.sleep(0.05)
+                continue
+
+            (x, y), radius = cv2.minEnclosingCircle(cnt)
+            dx    = x - center_x
+            angle = (dx / center_x) * (HFOV / 2)
+
+            msg = f"Red,{int(area)},{angle:.2f}\n"
             print(f"[SEND] {msg.strip()}")
             ser = safe_serial_write(ser, msg)
-            time.sleep(0.05)
-            continue
 
-        cnt  = max(contours, key=cv2.contourArea)
-        area = cv2.contourArea(cnt)
-        if area < 500:
-            msg = "None,-1,0.00\n"
-            print(f"[SEND] {msg.strip()}")
-            ser = safe_serial_write(ser, msg)
-            time.sleep(0.05)
-            continue
+        except Exception as e:
+            print(f"[ERROR] 処理中にエラーが発生: {e}")
 
+        time.sleep(0.05)
 
     cap.release()
     if ser:
