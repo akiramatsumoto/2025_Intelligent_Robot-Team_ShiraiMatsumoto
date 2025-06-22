@@ -58,77 +58,95 @@ def wait_for_trigger(ser):
                     print("[INFO] Trigger received. Starting camera processing.")
                     return
             except UnicodeDecodeError:
-                continue  # 文字化け対策
+                continue
         time.sleep(0.01)
 
 def main():
     ser = init_serial()
-    wait_for_trigger(ser)  # ← ここでArduinoの合図を待つ
+    if not ser:
+        sys.exit(1)
 
     cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
     if not cap.isOpened():
         print("[ERROR] カメラが開けませんでした")
         sys.exit(1)
 
-    # 古いフレームを破棄（5枚分）
-    for _ in range(5):
-        cap.read()
+    try:
+        while True:
+            wait_for_trigger(ser)
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("[WARN] フレーム取得失敗")
-            time.sleep(0.5)
-            continue
+            # 古いフレームを破棄（バッファ削除）
+            for _ in range(5):
+                cap.read()
 
-        height, width = frame.shape[:2]
-        center_x = width / 2
+            print("[INFO] カメラループ開始")
+            while True:
+                if ser.in_waiting > 0:
+                    try:
+                        line = ser.readline().decode('utf-8').strip()
+                        if line == "STOP":
+                            print("[INFO] STOP received. カメラループ終了")
+                            break
+                    except UnicodeDecodeError:
+                        continue
 
-        blurred = cv2.GaussianBlur(frame, (11, 11), 0)
-        hsv     = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
+                ret, frame = cap.read()
+                if not ret:
+                    print("[WARN] フレーム取得失敗")
+                    time.sleep(0.5)
+                    continue
 
-        mask = np.zeros_like(cv2.inRange(hsv, (0,0,0), (0,0,0)))
-        for lower, upper in color_ranges["Red"]:
-            mask |= cv2.inRange(hsv, lower, upper)
+                height, width = frame.shape[:2]
+                center_x = width / 2
 
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                blurred = cv2.GaussianBlur(frame, (11, 11), 0)
+                hsv     = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
-        try:
-            if not contours:
-                msg = "None,-1,0.00\n"
-                print(f"[SEND] {msg.strip()}")
-                ser = safe_serial_write(ser, msg)
+                mask = np.zeros_like(cv2.inRange(hsv, (0,0,0), (0,0,0)))
+                for lower, upper in color_ranges["Red"]:
+                    mask |= cv2.inRange(hsv, lower, upper)
+
+                contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+                try:
+                    if not contours:
+                        msg = "None,-1,0.00\n"
+                        print(f"[SEND] {msg.strip()}")
+                        ser = safe_serial_write(ser, msg)
+                        time.sleep(0.05)
+                        continue
+
+                    cnt  = max(contours, key=cv2.contourArea)
+                    area = cv2.contourArea(cnt)
+                    if area < 500:
+                        msg = "None,-1,0.00\n"
+                        print(f"[SEND] {msg.strip()}")
+                        ser = safe_serial_write(ser, msg)
+                        time.sleep(0.05)
+                        continue
+
+                    (x, y), radius = cv2.minEnclosingCircle(cnt)
+                    dx    = x - center_x
+                    angle = (dx / center_x) * (HFOV / 2)
+
+                    msg = f"Red,{int(area)},{angle:.2f}\n"
+                    print(f"[SEND] {msg.strip()}")
+                    ser = safe_serial_write(ser, msg)
+
+                except Exception as e:
+                    print(f"[ERROR] 処理中にエラーが発生: {e}")
+
                 time.sleep(0.05)
-                continue
 
-            cnt  = max(contours, key=cv2.contourArea)
-            area = cv2.contourArea(cnt)
-            if area < 500:
-                msg = "None,-1,0.00\n"
-                print(f"[SEND] {msg.strip()}")
-                ser = safe_serial_write(ser, msg)
-                time.sleep(0.05)
-                continue
+            print("[INFO] 次の START を待ちます")
 
-            (x, y), radius = cv2.minEnclosingCircle(cnt)
-            dx    = x - center_x
-            angle = (dx / center_x) * (HFOV / 2)
-
-            msg = f"Red,{int(area)},{angle:.2f}\n"
-            print(f"[SEND] {msg.strip()}")
-            ser = safe_serial_write(ser, msg)
-
-        except Exception as e:
-            print(f"[ERROR] 処理中にエラーが発生: {e}")
-
-        time.sleep(0.05)
-
-    cap.release()
-    if ser:
-        ser.close()
+    except KeyboardInterrupt:
+        print("\n[INFO] Ctrl+C で終了されました")
+    finally:
+        cap.release()
+        if ser:
+            ser.close()
+        print("[INFO] カメラ解放、シリアルポート閉じました")
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("\n[INFO] 終了します")
+    main()
