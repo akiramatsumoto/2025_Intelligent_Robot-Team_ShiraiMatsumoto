@@ -47,13 +47,32 @@ def safe_serial_write(ser, msg):
         return init_serial()
     return ser
 
+def wait_for_trigger(ser):
+    print("[INFO] Waiting for START from Arduino...")
+    while True:
+        if ser.in_waiting > 0:
+            try:
+                line = ser.readline().decode('utf-8').strip()
+                print(f"[INFO] Arduino -> {line}")
+                if line == "START":
+                    print("[INFO] Trigger received. Starting camera processing.")
+                    return
+            except UnicodeDecodeError:
+                continue  # 文字化け対策
+        time.sleep(0.01)
+
 def main():
     ser = init_serial()
+    wait_for_trigger(ser)  # ← ここでArduinoの合図を待つ
 
     cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
     if not cap.isOpened():
         print("[ERROR] カメラが開けませんでした")
         sys.exit(1)
+
+    # 古いフレームを破棄（5枚分）
+    for _ in range(5):
+        cap.read()
 
     while True:
         ret, frame = cap.read()
