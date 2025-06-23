@@ -89,7 +89,10 @@ void setup() {
 }
 
 void loop() {
-controlSuction(true);
+controlServo(true);
+delay(1000);
+controlServo(false);
+delay(1000);
 }
 
 /* --- ヘルパー関数 --- */
