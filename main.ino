@@ -76,11 +76,11 @@ const float tolerance_angle = 15;
 // STATE_BALL_DETECTがスキップされないように予めtolerance_angleに1を足す
 float angle = tolerance_angle + 1.0;
 
-int state = 4; // 現在の状態
+int state = 0; // 現在の状態
 bool psd = false;       // 測距センサ検出フラグ
 int color = 0;          // ボール色: 0=なし,1=赤,2=黄,3=青
-// 0621_松本変更
-int linePos = 2;        // ライン位置番号: 0~3
+// 0621_松本変更 0からスタート
+int linePos = 0;        // ライン位置番号: 0~3
 
 // シリアル通信用
 String inputString = "";
@@ -151,7 +151,6 @@ void loop() {
 
   switch (state) {
     case STATE_WAIT:
-      stopCenterLine();
       delay(30000);
       state = STATE_TO_BALL_AREA;
       break;
@@ -159,7 +158,7 @@ void loop() {
     case STATE_TO_BALL_AREA:
     // 白井ここ書いて
     //0616_白井追加
-    pidControl(sensor_value_L, sensor_value_R);
+      pidControl(sensor_value_L, sensor_value_R);
       if (side_line == true && line_L == 1 && line_R == 1){
         linePos += 1;
         side_line = false;
@@ -243,7 +242,8 @@ void loop() {
       encoderLeft.write(0);
 
       // 3本目のラインは越えている状態
-      linePos -= 1; 
+      // これいらない気がする
+      // linePos -= 1; 
 
       while (true) {
         motorControl(255, 255);
