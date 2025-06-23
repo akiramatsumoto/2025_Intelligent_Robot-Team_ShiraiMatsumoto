@@ -76,11 +76,11 @@ const float tolerance_angle = 15;
 // STATE_BALL_DETECTがスキップされないように予めtolerance_angleに1を足す
 float angle = tolerance_angle + 1.0;
 
-int state = STATE_BALL_COLLECT; // 現在の状態
+int state = 4; // 現在の状態
 bool psd = false;       // 測距センサ検出フラグ
 int color = 0;          // ボール色: 0=なし,1=赤,2=黄,3=青
 // 0621_松本変更
-int linePos = 3;        // ライン位置番号: 0~3
+int linePos = 2;        // ライン位置番号: 0~3
 
 // シリアル通信用
 String inputString = "";
@@ -325,13 +325,13 @@ void loop() {
       stopAll();
       delay(1000);
       // もし今黒を踏んでいたら少し回転
-      sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
-      if(sensor_value_R < 100){
+      //sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
+      //if(sensor_value_R < 100){
         motorControl(255, -255);
         delay(5);
         stopAll();
         delay(100);
-      }
+      //}
       // センサの値を更新
       sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
       // もう一度黒を踏むまで回転
@@ -343,18 +343,22 @@ void loop() {
         delay(100);
       }
       // サーボモータを下げる
+      stopAll();
+      delay(2000);
       // しばらく待つ
       // サーボモータを上げる
       // もし今黒を踏んでいたら少し回転
-      sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
-      if(sensor_value_R < 100){
+      //sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
+      //if(sensor_value_R < 100){
         motorControl(255, -255);
-        delay(5);
+        delay(20);
         stopAll();
         delay(100);
-      }
+      //}
       // センサの値を更新
       sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
+      stopAll();
+      delay(2000);
       // もう一度黒を踏むまで回転
       while(sensor_value_R < 100){
         sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
