@@ -150,27 +150,25 @@ void loop() {
   }
 
   switch (state) {
-    case STATE_WAIT: {
+    case STATE_WAIT:
       stopCenterLine();
       delay(30000);
       state = STATE_TO_BALL_AREA;
       break;
-    }
 
-    case STATE_TO_BALL_AREA: {
-      // 白井ここ書いて
-      //0616_白井追加
-      pidControl(sensor_value_L, sensor_value_R);
+    case STATE_TO_BALL_AREA:
+    // 白井ここ書いて
+    //0616_白井追加
+    pidControl(sensor_value_L, sensor_value_R);
       if (side_line == true && line_L == 1 && line_R == 1){
         linePos += 1;
         side_line = false;
       }
       if (linePos == 3)
         state = STATE_BALL_DETECT;
-      break;
-    }
+      break;  
 
-    case STATE_BALL_DETECT: {
+    case STATE_BALL_DETECT:
       stopAll();
       delay(2000);
       Serial.println("START");
@@ -193,16 +191,15 @@ void loop() {
       }
 
       break;
-    }
 
-    case STATE_BALL_COLLECT: {
+    case STATE_BALL_COLLECT:{
       stopAll();
 
       encoderRight.write(0);
       encoderLeft.write(0);
 
       int detectedCount = 0;  // 連続trueカウント
-      int psdCount = 0;       // 検出回数カウント
+      int psdCount = 0;           // 検出回数カウント
 
       while (psdCount <= 1) {
         bool detected = isBallDetected();
@@ -212,12 +209,12 @@ void loop() {
 
         if (detected) {
           detectedCount++;
-          if (detectedCount >= 5) {
+          if (detectedCount >= 5) {  // 5回連続でtrueなら1カウント
             psdCount++;
-            detectedCount = 0;
+            detectedCount = 0;  // リセットして次の検出を待つ
           }
         } else {
-          detectedCount = 0;
+          detectedCount = 0;  // 連続が途切れたらリセット
         }
 
         motorControl(255, 255);
@@ -227,6 +224,7 @@ void loop() {
       }
       stopAll();
 
+      // 走行距離を記録
       long distanceRight = abs(encoderRight.read());
       long distanceLeft  = abs(encoderLeft.read());
       long avgDistance = (distanceRight + distanceLeft) / 2;
@@ -240,10 +238,12 @@ void loop() {
       stopAll();
       delay(1000);
 
+      // 記録した距離だけ戻る
       encoderRight.write(0);
       encoderLeft.write(0);
 
-      linePos -= 1;
+      // 3本目のラインは越えている状態
+      linePos -= 1; 
 
       while (true) {
         motorControl(255, 255);
@@ -272,17 +272,16 @@ void loop() {
             state = STATE_TO_BLUE_GOAL;
             break;
           } else {
-            state = STATE_TO_RED_GOAL;
+            state = STATE_TO_RED_GOAL;  // 未知の色
             break;
           }
         }
       }
-      break;
     }
 
-    case STATE_TO_RED_GOAL: {
-      // 白井ここ書いて 
-      //0616_白井追加_反時計回りを向いている物としている
+    case STATE_TO_RED_GOAL:
+    // 白井ここ書いて 
+    //0616_白井追加_反時計回りを向いている物としている
       pidControl(sensor_value_L, sensor_value_R);
       if (side_line == true && line_L == 1 && line_R == 1){
         linePos -= 1;
@@ -290,12 +289,11 @@ void loop() {
       }
       if (linePos == 0)
         state = STATE_DROP_RED;
-      break;
-    }
+      break; 
 
-    case STATE_TO_YELLOW_GOAL: {
-      // 白井ここ書いて
-      //0616_白井追加_反時計回りを向いている物としている
+    case STATE_TO_YELLOW_GOAL:
+    // 白井ここ書いて
+    //0616_白井追加_反時計回りを向いている物としている
       pidControl(sensor_value_L, sensor_value_R);
       if (side_line == true && line_L == 1 && line_R == 1){
         linePos -= 1;
@@ -303,12 +301,11 @@ void loop() {
       }
       if (linePos == 1)
         state = STATE_DROP_YELLOW;
-      break;
-    }
+      break;  
 
-    case STATE_TO_BLUE_GOAL: {
-      // 白井ここ書いて 
-      //0616_白井追加_反時計回りを向いている物としている
+    case STATE_TO_BLUE_GOAL:
+    // 白井ここ書いて 
+    //0616_白井追加_反時計回りを向いている物としている
       pidControl(sensor_value_L, sensor_value_R);
       if (side_line == true && line_L == 1 && line_R == 1){
         linePos -= 1;
@@ -316,17 +313,18 @@ void loop() {
       }
       if (linePos == 2)
         state = STATE_DROP_BLUE;
-      break;
-    }
-
-    case STATE_DROP_RED: {
+      break;  
+    
+    case STATE_DROP_RED:
+      // 赤・黄色ゴール用
       stopAll();
       delay(1000);
       motorControl(255, 255);
+      // 少し前に進む
       delay(FORWORD_TIME);
       stopAll();
       delay(1000);
-
+      // もし今黒を踏んでいたら少し回転
       sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
       if(sensor_value_R < 100){
         motorControl(255, -255);
@@ -334,8 +332,9 @@ void loop() {
         stopAll();
         delay(100);
       }
-
+      // センサの値を更新
       sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
+      // もう一度黒を踏むまで回転
       while(sensor_value_R < 100){
         sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
         motorControl(255, -255);
@@ -343,11 +342,10 @@ void loop() {
         stopAll();
         delay(100);
       }
-
       // サーボモータを下げる
       // しばらく待つ
       // サーボモータを上げる
-
+      // もし今黒を踏んでいたら少し回転
       sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
       if(sensor_value_R < 100){
         motorControl(255, -255);
@@ -355,8 +353,9 @@ void loop() {
         stopAll();
         delay(100);
       }
-
+      // センサの値を更新
       sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
+      // もう一度黒を踏むまで回転
       while(sensor_value_R < 100){
         sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
         motorControl(255, -255);
@@ -364,12 +363,12 @@ void loop() {
         stopAll();
         delay(100);
       }
-
       state = STATE_TO_BALL_AREA;
       break;
-    }
 
-    case STATE_DROP_YELLOW: {
+    case STATE_DROP_YELLOW:
+      // 赤・黄色ゴール用
+      // もし今黒を踏んでいたら少し回転
       sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
       if(sensor_value_R < 100){
         motorControl(255, -255);
@@ -377,8 +376,9 @@ void loop() {
         stopAll();
         delay(100);
       }
-
+      // センサの値を更新
       sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
+      // もう一度黒を踏むまで回転
       while(sensor_value_R < 100){
         sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
         motorControl(255, -255);
@@ -386,11 +386,10 @@ void loop() {
         stopAll();
         delay(100);
       }
-
       // サーボモータを下げる
       // しばらく待つ
       // サーボモータを上げる
-
+      // もし今黒を踏んでいたら少し回転
       sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
       if(sensor_value_R < 100){
         motorControl(255, -255);
@@ -398,8 +397,9 @@ void loop() {
         stopAll();
         delay(100);
       }
-
+      // センサの値を更新
       sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
+      // もう一度黒を踏むまで回転
       while(sensor_value_R < 100){
         sensor_value_R = (analogRead(LINE_CH5_PIN) >> 2) * 1.2; 
         motorControl(255, -255);
@@ -407,25 +407,21 @@ void loop() {
         stopAll();
         delay(100);
       }
-
       state = STATE_TO_BALL_AREA;
       break;
-    }
 
-    case STATE_DROP_BLUE: {
+    case STATE_DROP_BLUE:
       // 青色ゴールのモーション
       // 前に進む
       // 180°回転 あとで関数つくる
       // 前に進む
       state = STATE_TO_BALL_AREA;
       break;
-    }
 
-    default: {
+    default:
       state = STATE_WAIT;
       break;
-    }
-
+  }
   delay(50);
 }
 
