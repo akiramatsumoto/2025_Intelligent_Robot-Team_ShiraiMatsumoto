@@ -151,7 +151,7 @@ void loop() {
 
   switch (state) {
     case STATE_WAIT:
-      delay(30000);
+      delay(10000);
       state = STATE_TO_BALL_AREA;
       break;
 
@@ -441,8 +441,8 @@ void pidControl(int sensor_value_L, int sensor_value_R) {
   I_diff = constrain(I_diff, -I_max, I_max);
 
   // 左右の速度調整
-  speed_l = constrain(base_speed + rotate, 0, 60); //ここ変える!
-  speed_r = constrain(base_speed - rotate, 0, 80); //ここ変える!
+  speed_l = constrain(base_speed + rotate, 0, 80); //ここ変える!
+  speed_r = constrain(base_speed - rotate, 0, 100); //ここ変える!
 
   /* 0617_松本追加 */  
   // モーター制御
