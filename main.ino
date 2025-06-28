@@ -155,12 +155,11 @@ void loop() {
   switch (state) {
     case STATE_WAIT:
       while(1) {
-      controlSuction(true);
-      controlServo(true);
-      delay(2000);
-      controlSuction(false);
-      controlServo(false);
-      delay(2000);
+        controlSuction(true);
+        motorControl(255, 255);
+        delay(5);  
+        stopAll();
+        delay(5);
       }
 
       /*
@@ -739,7 +738,7 @@ void stopCenterLine() {
 void controlServo(bool up) {
   servo.attach(SERVO_PIN);
   // 0と90は適宜変更
-  servo.write(up ? 0 : 90);
+  servo.write(up ? 0 : 10);
   delay(500);
   servo.detach();
 }
