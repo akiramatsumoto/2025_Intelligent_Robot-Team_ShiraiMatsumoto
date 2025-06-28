@@ -157,10 +157,11 @@ void loop() {
       int psdCount = 0;           // 検出回数カウント
 
       controlServo(false);
+      controlSuction(true);
 
       // 吸引→サーボのテスト
 
-      while (psdCount <= 20) {
+      while (psdCount <= 5) {
         bool detected = isBallDetected();
         Serial.print("Detected: "); Serial.print(detected);
         Serial.print(" | detectedCount: "); Serial.print(detectedCount);
@@ -176,10 +177,8 @@ void loop() {
           detectedCount = 0;  // 連続が途切れたらリセット
         }
 
-        controlSuction(true);
       }
 
-  
       // サーボを持ち上げる
       controlServo(true);
       delay(500);
@@ -741,7 +740,7 @@ void controlServo(bool up) {
 // 吸引オンオフ (true: ON, false: OFF)
 void controlSuction(bool on) {
   if (on) {
-    analogWrite(SUCTION_MD_A, 255);
+    analogWrite(SUCTION_MD_A, 150);
     analogWrite(SUCTION_MD_B, 0);
   } else {
     analogWrite(SUCTION_MD_A, 0);
