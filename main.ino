@@ -2,6 +2,9 @@
 #include <Encoder.h>
 #include <Wire.h>
 #include <Adafruit_VL53L0X.h>
+#include <Servo.h>
+
+Servo servo;
 
 /* ピン割り当て */
 // ライントレースセンサ (ch1～ch8)
@@ -151,6 +154,16 @@ void loop() {
 
   switch (state) {
     case STATE_WAIT:
+      while(1) {
+      controlSuction(true);
+      controlServo(true);
+      delay(2000);
+      controlSuction(false);
+      controlServo(false);
+      delay(2000);
+      }
+
+      /*
       // 吸引→サーボのテスト
 
       while (psdCount <= 1) {
@@ -175,6 +188,8 @@ void loop() {
       controlServo(true);
       delay(500);
       controlSuction(false);
+
+      */
       // 永久停止
       while(1) {
 
