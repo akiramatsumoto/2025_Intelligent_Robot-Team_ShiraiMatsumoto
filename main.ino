@@ -154,44 +154,8 @@ void loop() {
 
   switch (state) {
     case STATE_WAIT:{
-      int detectedCount = 0;  // 連続trueカウント
-      int psdCount = 0;           // 検出回数カウント
 
-      controlServo(false);
-      controlSuction(true);
-
-      // 吸引→サーボのテスト
-
-      while (psdCount <= 5) {
-        bool detected = isBallDetected();
-        Serial.print("Detected: "); Serial.print(detected);
-        Serial.print(" | detectedCount: "); Serial.print(detectedCount);
-        Serial.print(" | psdCount: "); Serial.println(psdCount);
-
-        if (detected) {
-          detectedCount++;
-          if (detectedCount >= 5) {  // 5回連続でtrueなら1カウント
-            psdCount++;
-            detectedCount = 0;  // リセットして次の検出を待つ
-          }
-        } else {
-          detectedCount = 0;  // 連続が途切れたらリセット
-        }
-
-      }
-
-      // サーボを持ち上げる
-      controlServo(true);
-      delay(500);
-      controlSuction(false);
-      // 永久停止
-      while(1) {
-
-      }
-
-
-      // 
-      delay(10000);
+      delay(20000);
       state = STATE_TO_BALL_AREA;
       break;
     }
@@ -240,6 +204,9 @@ void loop() {
       int detectedCount = 0;  // 連続trueカウント
       int psdCount = 0;           // 検出回数カウント
 
+      controlServo(false);
+      controlSuction(true);
+
       while (psdCount <= 1) {
         bool detected = isBallDetected();
         Serial.print("Detected: "); Serial.print(detected);
@@ -255,8 +222,6 @@ void loop() {
         } else {
           detectedCount = 0;  // 連続が途切れたらリセット
         }
-
-        controlSuction(true);
 
         motorControl(255, 255);
         delay(5);  
