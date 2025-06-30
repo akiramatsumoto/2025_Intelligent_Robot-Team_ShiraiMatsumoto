@@ -356,6 +356,7 @@ void loop() {
       }
       // サーボモータを下げる
       stopAll();
+      controlServo(false);
       delay(2000);
       // しばらく待つ
       // サーボモータを上げる
