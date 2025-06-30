@@ -91,7 +91,7 @@ bool stringComplete = false;
 
 /* 0616_白井追加 */
 /* ライントレース用PIDなど */
-#define Kp 10.0 //ここ変える!
+#define Kp 7.0 //ここ変える!
 #define Ki 0.01 //ここ変える!
 #define Kd 5.0  //ここ変える!
 float I_diff = 0;
@@ -102,7 +102,7 @@ bool side_line = true;
 
 /* 0617_松本追加 */  
 // その他
-float base_speed = 50;  // 基本速度（0〜255）ここ変える!
+float base_speed = 30;  // 基本速度（0〜255）ここ変える!
 float speed_l = 0;
 float speed_r = 0;
 
@@ -155,7 +155,7 @@ void loop() {
   switch (state) {
     case STATE_WAIT:{
 
-      delay(20000);
+      delay(40000);
       state = STATE_TO_BALL_AREA;
       break;
     }
@@ -454,8 +454,8 @@ void pidControl(int sensor_value_L, int sensor_value_R) {
   I_diff = constrain(I_diff, -I_max, I_max);
 
   // 左右の速度調整
-  speed_l = constrain(base_speed + rotate, 0, 80); //ここ変える!
-  speed_r = constrain(base_speed - rotate, 0, 100); //ここ変える!
+  speed_l = constrain(base_speed + rotate, 0, 60); //ここ変える!
+  speed_r = constrain(base_speed - rotate, 0, 80); //ここ変える!
 
   /* 0617_松本追加 */  
   // モーター制御
