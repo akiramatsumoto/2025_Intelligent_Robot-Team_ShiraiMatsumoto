@@ -154,7 +154,7 @@ void loop() {
 
   switch (state) {
     case STATE_WAIT:{
-
+      controlServo(false);
       delay(40000);
       controlServo(false);
 
@@ -271,6 +271,8 @@ void loop() {
         if (avgPos >= avgDistance) {
           stopAll();
           delay(2000);
+          // 追加　90°回転
+          rotateRobot(30,1);
           if (!isCenterLineDetected()){
             stopCenterLine();
           }
@@ -663,7 +665,7 @@ void stopCenterLine() {
       }
       // 下がっちゃうので戻す
       driveStraight();
-      delay(20);
+      delay(5);
     } else {
         // -90
         for (int i = 0; i < 15; i++) {
@@ -689,7 +691,7 @@ void stopCenterLine() {
         }
         // 下がっちゃうので戻す
         driveStraight();
-        delay(20);
+        delay(5);
     }
     stopAll();
     delay(500);
