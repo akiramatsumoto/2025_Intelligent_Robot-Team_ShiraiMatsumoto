@@ -155,15 +155,8 @@ void loop() {
   switch (state) {
     case STATE_WAIT:{
 
-
-
-
-//      delay(40000);
-      controlServo(false);
-      while(1) {
-
-      }
       delay(40000);
+      controlServo(false);
 
       state = STATE_TO_BALL_AREA;
       break;
@@ -708,7 +701,7 @@ void stopCenterLine() {
 void controlServo(bool up) {
   servo.attach(SERVO_PIN);
   // 0と90は適宜変更
-  servo.write(up ? 60 : 0);
+  servo.write(up ? 60 : 8);
   delay(500);
   servo.detach();
 }
